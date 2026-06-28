@@ -18,16 +18,17 @@ import { canonicalUrlKey } from "./url-identity.js";
 import { withBrowser } from "./screenshot.js";
 
 const storyClassificationSchema = z.object({
-  title: z.string().min(3).max(140),
-  description: z.string().max(320).default(""),
+  title: z.string().min(3).max(260),
+  description: z.string().max(500).default(""),
   tags: z.array(z.string()).default([]),
-  aiComment: z.string().min(20).max(520),
+  aiComment: z.string().min(1).max(700),
   qualityScore: z.number().min(0).max(1),
   shouldPublish: z.boolean(),
 });
 
 const BLOCKED_HOSTS = new Set([
   "accounts.google.com",
+  "bsky.app",
   "facebook.com",
   "github.com",
   "google.com",
@@ -85,6 +86,12 @@ function formatTag(tag: string): string {
     .join(" ");
 }
 
+function truncate(value: string, maxLength: number): string {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 1).trim()}…`;
+}
+
 function compactTags(tags: string[]): string[] {
   return [...new Set(tags.map(formatTag).filter(Boolean))].slice(0, 4);
 }
@@ -100,6 +107,7 @@ function isAssetUrl(url: URL): boolean {
 }
 
 function isUsefulStoryUrl(rawUrl: string, sourceUrl: string): boolean {
+  if (/^(mailto|tel|javascript):/i.test(rawUrl)) return false;
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -163,6 +171,7 @@ async function discoverStoryUrls(browser: Browser, sourceUrls: string[], limit: 
       for (const href of hrefs) {
         if (discovered.length >= limit) break;
         try {
+          if (/^(mailto|tel|javascript):/i.test(href)) continue;
           const normalized = normalizeUrl(new URL(href, sourceUrl).toString());
           if (!isUsefulStoryUrl(normalized, sourceUrl)) continue;
           uniquePush(discovered, seen, normalized);
@@ -336,11 +345,11 @@ async function classifyStory(args: {
     sourceUrl: args.sourceUrl,
     url: args.finalUrl,
     finalUrl: args.finalUrl,
-    title: parsed.title.trim(),
-    description: parsed.description.trim(),
+    title: truncate(parsed.title, 140),
+    description: truncate(parsed.description, 260),
     domain: host(args.finalUrl),
     tags: compactTags(parsed.tags),
-    aiComment: parsed.aiComment.trim(),
+    aiComment: truncate(parsed.aiComment, 520),
     qualityScore: parsed.qualityScore,
     shouldPublish: parsed.shouldPublish,
   };
@@ -360,45 +369,52 @@ async function main(): Promise<void> {
     published: false,
   };
 
-  const framer = await connectFramer();
+  const sourceFile = await loadSourceFile(config.storySourceFile);
+  const manualUrls = await loadManualSources(config.storySourceFile, config.maxStories);
+  const discoveredUrls = await withBrowser((browser) =>
+    discoverStoryUrls(browser, sourceFile.discoveryPages, config.maxStories * 5),
+  );
+  const urls = [...discoveredUrls, ...manualUrls];
+  const runUrlKeys = new Set<string>();
 
-  try {
-    const { collection, fields } = await getStoriesCollection(framer);
-    const existingUrlKeys = await getExistingStoryUrlKeys(collection, fields);
-    const existingSlugs = await getExistingStorySlugs(collection);
-    const sourceFile = await loadSourceFile(config.storySourceFile);
-    const manualUrls = await loadManualSources(config.storySourceFile, config.maxStories);
-    const discoveredUrls = await withBrowser((browser) =>
-      discoverStoryUrls(browser, sourceFile.discoveryPages, config.maxStories * 5),
-    );
-    const urls = [...discoveredUrls, ...manualUrls];
-    const runUrlKeys = new Set<string>();
+  summary.discovered = discoveredUrls.length;
+  console.log(`Prepared ${urls.length} story candidate URL(s).`);
 
-    summary.discovered = discoveredUrls.length;
-    console.log(`Prepared ${urls.length} story candidate URL(s).`);
+  const initialFramer = await connectFramer();
+  const { existingUrlKeys, existingSlugs } = await (async () => {
+    try {
+      const { collection, fields } = await getStoriesCollection(initialFramer);
+      return {
+        existingUrlKeys: await getExistingStoryUrlKeys(collection, fields),
+        existingSlugs: await getExistingStorySlugs(collection),
+      };
+    } finally {
+      await initialFramer.disconnect();
+    }
+  })();
 
-    await withBrowser(async (browser) => {
-      for (const rawUrl of urls) {
-        if (summary.created >= config.maxStories) {
-          console.log(`Reached MAX_STORIES=${config.maxStories}; stopping.`);
-          break;
+  await withBrowser(async (browser) => {
+    for (const rawUrl of urls) {
+      if (summary.created >= config.maxStories) {
+        console.log(`Reached MAX_STORIES=${config.maxStories}; stopping.`);
+        break;
+      }
+
+      const url = normalizeUrl(rawUrl);
+      const key = canonicalUrlKey(url);
+      if (!key || runUrlKeys.has(key)) continue;
+      runUrlKeys.add(key);
+
+      summary.scanned += 1;
+      console.log(`Scanning story ${url}`);
+
+      try {
+        if (existingUrlKeys.has(key)) {
+          summary.skippedDuplicate += 1;
+          report.addSkipped(url, "duplicate URL");
+          console.log(`Skipped duplicate story: ${url}`);
+          continue;
         }
-
-        const url = normalizeUrl(rawUrl);
-        const key = canonicalUrlKey(url);
-        if (!key || runUrlKeys.has(key)) continue;
-        runUrlKeys.add(key);
-
-        summary.scanned += 1;
-        console.log(`Scanning story ${url}`);
-
-        try {
-          if (existingUrlKeys.has(key)) {
-            summary.skippedDuplicate += 1;
-            report.addSkipped(url, "duplicate URL");
-            console.log(`Skipped duplicate story: ${url}`);
-            continue;
-          }
 
           const metadata = await readStoryMetadata(browser, url);
           const finalKey = canonicalUrlKey(metadata.finalUrl);
@@ -431,8 +447,9 @@ async function main(): Promise<void> {
 
           if (!classified.title || !classified.shouldPublish || classified.qualityScore < config.minQualityScore) {
             summary.skippedLowQuality += 1;
-            report.addSkipped(url, `low quality: ${classified.qualityScore}`);
-            console.log(`Skipped low quality story: ${url} (${classified.qualityScore})`);
+            const reason = classified.shouldPublish ? `low quality: ${classified.qualityScore}` : "not suitable for Stories";
+            report.addSkipped(url, reason);
+            console.log(`Skipped story: ${url} (${reason})`);
             continue;
           }
 
@@ -444,27 +461,46 @@ async function main(): Promise<void> {
           if (config.dryRun) {
             console.log(JSON.stringify(candidate, null, 2));
           } else {
-            await addStoryItem(collection, fields, candidate);
+            const writerFramer = await connectFramer();
+            try {
+              const { collection, fields } = await getStoriesCollection(writerFramer);
+              const latestUrlKeys = await getExistingStoryUrlKeys(collection, fields);
+              const latestKey = canonicalUrlKey(candidate.finalUrl);
+              if (latestKey && latestUrlKeys.has(latestKey)) {
+                summary.skippedDuplicate += 1;
+                report.addSkipped(url, "duplicate before write");
+                console.log(`Skipped duplicate story before write: ${url}`);
+                continue;
+              }
+              await addStoryItem(collection, fields, candidate);
+            } finally {
+              await writerFramer.disconnect();
+            }
           }
 
           const candidateKey = canonicalUrlKey(candidate.finalUrl);
           if (candidateKey) existingUrlKeys.add(candidateKey);
           summary.created += 1;
           report.addCreated(candidate);
-        } catch (error) {
-          summary.failed += 1;
-          const message = error instanceof Error ? error.message : String(error);
-          report.addFailed(url, message);
-          console.error(`Failed story ${url}: ${message}`);
-        }
+      } catch (error) {
+        summary.failed += 1;
+        const message = error instanceof Error ? error.message : String(error);
+        report.addFailed(url, message);
+        console.error(`Failed story ${url}: ${message}`);
       }
-    });
+    }
+  });
 
-    summary.published = await publishIfRequested(framer, summary.created > 0);
-    await report.write(summary);
-  } finally {
-    await framer.disconnect();
+  if (summary.created > 0) {
+    const publishFramer = await connectFramer();
+    try {
+      summary.published = await publishIfRequested(publishFramer, true);
+    } finally {
+      await publishFramer.disconnect();
+    }
   }
+
+    await report.write(summary);
 
   console.log("Stories summary");
   console.log(JSON.stringify(summary, null, 2));
