@@ -66,8 +66,8 @@ jobs:
           SCREENSHOTAPI_API_KEY: ${{ secrets.SCREENSHOTAPI_API_KEY }}
           DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
           READ_FRAMER_IN_DRY_RUN: ${{ vars.READ_FRAMER_IN_DRY_RUN || 'true' }}
-          PUBLISH: ${{ vars.PUBLISH || 'false' }}
-          DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'true' }}
+          PUBLISH: ${{ vars.PUBLISH || 'true' }}
+          DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'false' }}
           MAX_URLS: ${{ vars.MAX_URLS || '10' }}
           MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '12' }}
           MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
