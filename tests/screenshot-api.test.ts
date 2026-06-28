@@ -31,8 +31,15 @@ test("builds ScreenshotAPI request URL with DzinerHub defaults", () => {
   assert.equal(requestUrl.searchParams.get("viewportWidth"), "1440");
   assert.equal(requestUrl.searchParams.get("viewportHeight"), "1600");
   assert.equal(requestUrl.searchParams.get("fullPage"), "true");
+  assert.equal(requestUrl.searchParams.get("blockPopups"), "true");
   assert.equal(requestUrl.searchParams.get("blockCookieBanners"), "true");
   assert.equal(requestUrl.searchParams.get("doScroll"), "true");
+  assert.equal(requestUrl.searchParams.get("waitUntil"), "networkidle2");
+  assert.equal(requestUrl.searchParams.get("delay"), "2500");
+  assert.equal(requestUrl.searchParams.get("timeout"), "60000");
+  assert.equal(requestUrl.searchParams.get("deviceScaleFactor"), "1");
+  assert.equal(requestUrl.searchParams.get("scale"), "css");
+  assert.match(requestUrl.searchParams.get("style") ?? "", /cookie/i);
 });
 
 test("normalizes thumbnails to 640x960", async () => {

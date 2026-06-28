@@ -14,6 +14,7 @@ export interface WebsiteMetadata {
   contentType: string;
   statusCode: number | null;
   browserErrors: string[];
+  preflightErrorReason?: string;
   visualContext: {
     viewport: {
       width: number;

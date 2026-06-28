@@ -123,7 +123,10 @@ function isGenericTitle(value: string): boolean {
   return /^(home|index|untitled|welcome|website|landing page)$/i.test(value.trim());
 }
 
-export function capturedPageErrorReason(metadata: Pick<WebsiteMetadata, "browserErrors" | "statusCode" | "title" | "visualContext">): string | null {
+export function capturedPageErrorReason(
+  metadata: Pick<WebsiteMetadata, "browserErrors" | "preflightErrorReason" | "statusCode" | "title" | "visualContext">,
+): string | null {
+  if (metadata.preflightErrorReason) return metadata.preflightErrorReason;
   if (metadata.statusCode && metadata.statusCode >= 400) return `http ${metadata.statusCode}`;
 
   const visibleText = [
@@ -145,6 +148,11 @@ export function capturedPageErrorReason(metadata: Pick<WebsiteMetadata, "browser
     [/chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module/i, "asset loading error"],
     [/internal server error|bad gateway|service unavailable|gateway timeout/i, "server error page"],
     [/this site can.t be reached|err_name_not_resolved|err_connection|err_timed_out/i, "browser error page"],
+    [/just a moment|checking if the site connection is secure|cloudflare ray id|attention required/i, "bot protection page"],
+    [/verify you are human|are you human|captcha|recaptcha|hcaptcha/i, "captcha page"],
+    [/access denied|request blocked|forbidden|not authorized|you don't have permission/i, "access denied page"],
+    [/enable javascript|please enable javascript|javascript is disabled/i, "javascript required page"],
+    [/this page isn.t working|page isn.t available|site can.t be reached/i, "browser error page"],
   ];
 
   for (const [pattern, reason] of fatalPatterns) {
@@ -185,6 +193,8 @@ async function isBlankScreenshot(image: Buffer): Promise<boolean> {
 }
 
 export async function validateCapturedWebsite(metadata: WebsiteMetadata): Promise<string | null> {
+  if (metadata.preflightErrorReason) return metadata.preflightErrorReason;
+
   const finalUrlReason = candidateRejectReason(metadata.finalUrl);
   if (finalUrlReason) return `final url ${finalUrlReason}`;
 

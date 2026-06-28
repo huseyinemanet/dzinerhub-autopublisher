@@ -9,6 +9,28 @@ export const thumbnailSize = {
 
 export const fullImageWidth = 1500;
 
+const captureStyle = `
+  [id*="cookie" i],
+  [class*="cookie" i],
+  [id*="consent" i],
+  [class*="consent" i],
+  [id*="onetrust" i],
+  [class*="onetrust" i],
+  [id*="intercom" i],
+  [class*="intercom" i],
+  [id*="crisp" i],
+  [class*="crisp" i],
+  [id*="drift" i],
+  [class*="drift" i],
+  [id*="newsletter" i],
+  [class*="newsletter" i] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+`;
+
 interface ScreenshotApiOptions {
   apiKey: string;
   url: string;
@@ -37,7 +59,12 @@ export function buildScreenshotApiUrl(options: ScreenshotApiRequestOptions): str
   endpoint.searchParams.set("blockPopups", "true");
   endpoint.searchParams.set("blockCookieBanners", "true");
   endpoint.searchParams.set("doScroll", options.fullPage ? "true" : "false");
-  endpoint.searchParams.set("timeout", "45000");
+  endpoint.searchParams.set("waitUntil", "networkidle2");
+  endpoint.searchParams.set("delay", "2500");
+  endpoint.searchParams.set("timeout", "60000");
+  endpoint.searchParams.set("deviceScaleFactor", "1");
+  endpoint.searchParams.set("scale", "css");
+  endpoint.searchParams.set("style", captureStyle);
   return endpoint.toString();
 }
 

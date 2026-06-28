@@ -1,4 +1,5 @@
 import { chromium, type Browser, type Page } from "playwright";
+import { capturedPageErrorReason } from "./candidate-validation.js";
 import { config } from "./config.js";
 import { captureWithScreenshotApi } from "./screenshot-api.js";
 import type { WebsiteMetadata } from "./types.js";
@@ -30,6 +31,85 @@ function absoluteUrl(value: string, base: string): string {
   }
 }
 
+async function stabilizePage(page: Page): Promise<void> {
+  await page.waitForLoadState("load", { timeout: 25000 }).catch(() => undefined);
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
+  await page
+    .evaluate(async () => {
+      const fontReady = "fonts" in document ? document.fonts.ready.catch(() => undefined) : Promise.resolve();
+      const imageReady = Promise.all(
+        Array.from(document.images)
+          .slice(0, 80)
+          .map((image) => {
+            if (image.complete) return Promise.resolve();
+            return new Promise<void>((resolve) => {
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            });
+          }),
+      );
+      await Promise.race([
+        Promise.all([fontReady, imageReady]),
+        new Promise((resolve) => setTimeout(resolve, 6000)),
+      ]);
+    })
+    .catch(() => undefined);
+
+  await cleanupBlockingOverlays(page);
+  await page.waitForTimeout(900);
+}
+
+async function cleanupBlockingOverlays(page: Page): Promise<void> {
+  await page
+    .evaluate(() => {
+      const blockerWords = [
+        "accept all",
+        "accept cookies",
+        "cookie",
+        "consent",
+        "continue",
+        "got it",
+        "newsletter",
+        "privacy",
+        "subscribe",
+        "we use cookies",
+      ];
+      const selectorWords = [
+        "cookie",
+        "consent",
+        "onetrust",
+        "intercom",
+        "crisp",
+        "drift",
+        "newsletter",
+      ];
+      const viewportArea = window.innerWidth * window.innerHeight;
+
+      for (const element of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+
+        const style = window.getComputedStyle(element);
+        const isOverlayPosition = style.position === "fixed" || style.position === "sticky";
+        if (!isOverlayPosition) continue;
+
+        const text = (element.innerText || element.getAttribute("aria-label") || "").toLowerCase();
+        const identity = `${element.id} ${element.className}`.toLowerCase();
+        const coversLargeArea = (rect.width * rect.height) / viewportArea > 0.16;
+        const looksLikeKnownOverlay = selectorWords.some((word) => identity.includes(word));
+        const looksLikeBlockerText = blockerWords.some((word) => text.includes(word));
+
+        if (looksLikeKnownOverlay || (coversLargeArea && looksLikeBlockerText)) {
+          element.style.setProperty("display", "none", "important");
+          element.style.setProperty("visibility", "hidden", "important");
+          element.style.setProperty("opacity", "0", "important");
+          element.style.setProperty("pointer-events", "none", "important");
+        }
+      }
+    })
+    .catch(() => undefined);
+}
+
 export async function captureWebsite(browser: Browser, url: string): Promise<WebsiteMetadata> {
   const viewport = { width: 1440, height: 1100 };
   const page = await browser.newPage({
@@ -46,8 +126,8 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
 
   try {
     page.setDefaultTimeout(2500);
-    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-    await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => undefined);
+    const response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
+    await stabilizePage(page);
 
     const finalUrl = page.url();
     const contentType = response?.headers()["content-type"] ?? "";
@@ -99,6 +179,12 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
         linkCount: document.links.length,
       };
     })()`)) as WebsiteMetadata["visualContext"];
+    const preflightErrorReason = capturedPageErrorReason({
+      statusCode,
+      title: title.trim(),
+      browserErrors,
+      visualContext,
+    });
 
     const playwrightScreenshot = async () => {
       const thumbnail = await page.screenshot({
@@ -125,7 +211,7 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
 
     let screenshot: WebsiteMetadata["screenshot"];
     const shouldUseScreenshotApi =
-      config.screenshotProvider !== "playwright" && config.screenshotApiKey.trim().length > 0;
+      !preflightErrorReason && config.screenshotProvider !== "playwright" && config.screenshotApiKey.trim().length > 0;
 
     if (shouldUseScreenshotApi) {
       try {
@@ -157,6 +243,7 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
       contentType,
       statusCode,
       browserErrors: browserErrors.slice(0, 20),
+      preflightErrorReason: preflightErrorReason ?? undefined,
       visualContext,
       screenshot,
     };
