@@ -15,7 +15,7 @@ interface ScreenshotVisualProfile {
 }
 
 const aiCommentSchema = z.object({
-  aiComment: z.string().min(20).max(900),
+  aiComment: z.string().min(160).max(2600),
 });
 
 function clamp(value: number, min: number, max: number): number {
@@ -100,7 +100,11 @@ async function buildScreenshotVisualProfile(image: Buffer): Promise<ScreenshotVi
 function fallbackAiComment(classification: WebsiteClassification, visual: ScreenshotVisualProfile): string {
   const palette = visual.palette.slice(0, 3).join(", ");
   const mood = visual.mood.join(", ");
-  return `The design reads as ${mood}, with a palette led by ${palette}. Its strongest move is the controlled visual system: ${classification.styles.join(", ")} cues give the page a clear editorial stance without overexplaining the product.`;
+  return [
+    `The page reads as ${mood}, with a palette led by ${palette}. The first impression is built around restraint rather than noise: the layout gives the brand room to breathe, and the visual system uses ${classification.styles.join(", ")} cues to establish a clear point of view before the user has to read too deeply.`,
+    `The strongest art-direction move is the control of hierarchy. Typography, spacing, and contrast work together to make the page feel considered, with enough editorial distance to avoid becoming a generic product pitch. It feels curated, paced, and intentionally selective about what earns attention.`,
+    `As a reference, this is useful because it shows how a website can communicate confidence through composition instead of decoration. The design does not rely on a single loud trick; it builds its atmosphere through proportion, rhythm, and a disciplined relationship between content and interface.`,
+  ].join("\n\n");
 }
 
 function minimalVisualProfile(): ScreenshotVisualProfile {
@@ -143,7 +147,7 @@ export async function createAiComment(
         {
           role: "system",
           content:
-            "You are an art director and creative director writing concise design critique for a curated web design gallery. Return strict JSON only. Do not sound like marketing copy. Focus on visible composition, palette, typography, hierarchy, rhythm, and art direction. Avoid unsupported claims about business performance or product features.",
+            "You are an art director and creative director writing rich design critique for a curated web design gallery. Return strict JSON only. Do not sound like marketing copy, SEO copy, or a product description. Focus on visible composition, palette, typography, hierarchy, rhythm, interaction feeling, brand atmosphere, and art direction. Write with taste and specificity, as if selecting why this belongs in a serious inspiration archive. Avoid unsupported claims about business performance or product features.",
         },
         {
           role: "user",
@@ -151,7 +155,7 @@ export async function createAiComment(
             task: "Write the AI Comment field for this CMS item.",
             requiredShape: {
               aiComment:
-                "2-3 sentences, 45-85 words, polished editorial English, specific visual critique, art-director tone",
+                "3 short paragraphs, 170-260 words total, polished editorial English, specific visual critique, art-director / creative-director tone. Do not write a one-sentence summary. Do not use headings, bullets, markdown, or generic praise.",
             },
             website: {
               url: metadata.finalUrl,
