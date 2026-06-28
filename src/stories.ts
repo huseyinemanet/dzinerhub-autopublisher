@@ -19,9 +19,9 @@ import { withBrowser } from "./screenshot.js";
 
 const storyClassificationSchema = z.object({
   title: z.string().min(3).max(260),
-  description: z.string().max(500).default(""),
+  description: z.string().max(220).default(""),
   tags: z.array(z.string()).default([]),
-  aiComment: z.string().min(1).max(700),
+  aiComment: z.string().min(1).max(180),
   qualityScore: z.number().min(0).max(1),
   shouldPublish: z.boolean(),
 });
@@ -100,6 +100,21 @@ function parseJsonContent(content: string): unknown {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const source = fenced?.[1] ?? content;
   return JSON.parse(source.trim());
+}
+
+function normalizeStoryClassification(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  if (typeof record.aiComment === "string" && record.aiComment.trim()) return record;
+
+  for (const key of ["blurb", "comment", "summary", "note", "description"]) {
+    const fallback = record[key];
+    if (typeof fallback === "string" && fallback.trim()) {
+      return { ...record, aiComment: fallback };
+    }
+  }
+
+  return { ...record, aiComment: "A short link worth a quick look." };
 }
 
 function isAssetUrl(url: URL): boolean {
@@ -299,7 +314,7 @@ async function classifyStory(args: {
         {
           role: "system",
           content:
-            "You curate links for DzinerHub Stories: design, AI, product, frontend, startup, growth, UX, and creative technology links. Return strict JSON only. Read the page evidence carefully and infer what the link is actually about. Keep it practical, specific, and concise. Do not publish spam, job posts, login pages, generic homepages, events, discounts, or purely promotional pages.",
+            "You curate links for DzinerHub Stories: design, AI, product, frontend, startup, growth, UX, and creative technology links. Return strict JSON only. Read the page evidence carefully and infer what the link is actually about. Keep it practical, specific, and very short. Do not publish spam, job posts, login pages, generic homepages, events, discounts, or purely promotional pages.",
         },
         {
           role: "user",
@@ -307,9 +322,9 @@ async function classifyStory(args: {
             task: "Decide whether this link is worth adding to a daily curated links CMS.",
             requiredShape: {
               title: "clean link title",
-              description: "short neutral explanation of what the link is about, max 220 characters",
+              description: "very short neutral explanation, 6-14 words, max 90 characters",
               tags: ["Design", "AI", "Product", "Frontend"],
-              aiComment: "one useful editorial note explaining why this is worth opening, 35-75 words",
+              aiComment: "one tiny display blurb, 6-12 words, max 80 characters. Vary the phrasing. Examples: 'A quick look at AI-assisted medical interpretation.', 'A small essay on software judgment in the AI era.', 'A visual archive of historic menu design.'",
               qualityScore: "number from 0 to 1",
               shouldPublish: "boolean",
             },
@@ -339,17 +354,17 @@ async function classifyStory(args: {
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("DeepSeek returned an empty story response");
 
-  const parsed = storyClassificationSchema.parse(parseJsonContent(content));
+  const parsed = storyClassificationSchema.parse(normalizeStoryClassification(parseJsonContent(content)));
 
   return {
     sourceUrl: args.sourceUrl,
     url: args.finalUrl,
     finalUrl: args.finalUrl,
     title: truncate(parsed.title, 140),
-    description: truncate(parsed.description, 260),
+    description: truncate(parsed.description, 90),
     domain: host(args.finalUrl),
     tags: compactTags(parsed.tags),
-    aiComment: truncate(parsed.aiComment, 520),
+    aiComment: truncate(parsed.aiComment, 80),
     qualityScore: parsed.qualityScore,
     shouldPublish: parsed.shouldPublish,
   };
