@@ -16,6 +16,16 @@ on:
         required: false
         default: ""
         type: string
+      max_urls:
+        description: "Optional candidate URL limit for manual autopublish runs"
+        required: false
+        default: ""
+        type: string
+      max_created:
+        description: "Optional new item limit for manual autopublish runs"
+        required: false
+        default: ""
+        type: string
   schedule:
     # Every day at 08:12 Europe/Istanbul.
     - cron: "12 5 * * *"
@@ -68,7 +78,8 @@ jobs:
           READ_FRAMER_IN_DRY_RUN: ${{ vars.READ_FRAMER_IN_DRY_RUN || 'true' }}
           PUBLISH: ${{ vars.PUBLISH || 'true' }}
           DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'false' }}
-          MAX_URLS: ${{ vars.MAX_URLS || '10' }}
+          MAX_URLS: ${{ inputs.max_urls || vars.MAX_URLS || '10' }}
+          MAX_CREATED: ${{ inputs.max_created || '' }}
           MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '12' }}
           MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
           MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}

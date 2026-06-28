@@ -133,6 +133,11 @@ async function main(): Promise<void> {
     console.log(`Prepared ${urls.length} candidate URL(s).`);
 
     for (const rawUrl of urls) {
+      if (config.maxCreated > 0 && summary.created >= config.maxCreated) {
+        console.log(`Reached MAX_CREATED=${config.maxCreated}; stopping.`);
+        break;
+      }
+
       const url = normalizeUrl(rawUrl);
       summary.scanned += 1;
       console.log(`Scanning ${url}`);
