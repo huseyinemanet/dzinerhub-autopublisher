@@ -6,5 +6,6 @@ screenshots/
 dist/
 autopublisher-report.json
 story-report.json
+inspiration-report.json
 *.log
 .DS_Store

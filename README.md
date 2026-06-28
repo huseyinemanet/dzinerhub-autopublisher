@@ -2,7 +2,7 @@
 
 Automated daily content pipeline for the DzinerHub Framer CMS `Websites` collection.
 
-It discovers curated website inspiration from sources like Land-book, Recent Design, Craftwork, Landingfolio, SiteInspire, Lapa Ninja, One Page Love, and similar galleries; captures screenshots; asks DeepSeek for metadata and art-direction commentary; then creates Framer CMS items. It also curates daily links for the Framer CMS `Stories` collection from design, AI, product, frontend, and startup sources.
+It discovers curated website inspiration from sources like Land-book, Recent Design, Craftwork, Landingfolio, SiteInspire, Lapa Ninja, One Page Love, and similar galleries; captures screenshots; asks DeepSeek for metadata and art-direction commentary; then creates Framer CMS items. It also curates daily links for the Framer CMS `Stories` collection and selective visual inspiration items for the `Inspiration` collection.
 
 ## Features
 
@@ -17,6 +17,7 @@ It discovers curated website inspiration from sources like Land-book, Recent Des
 - Supports draft-only review mode and optional Framer publishing
 - Runs daily through GitHub Actions
 - Curates daily `Stories` links from sources like TLDR, Product Hunt, Hacker News, Techmeme, Sidebar, HeyDesigner, Muzli, Indie Hackers, and AI newsletters
+- Curates selective `Inspiration` items from visual art, design, architecture, photography, and culture publications, with strict image and quality filters
 
 ## GitHub Action Defaults
 
@@ -74,6 +75,12 @@ Run the Stories importer:
 DRY_RUN=false PUBLISH=true DRAFT_ITEMS=false npm run stories
 ```
 
+Run the Inspiration importer:
+
+```bash
+DRY_RUN=false PUBLISH=true DRAFT_ITEMS=false npm run inspiration
+```
+
 ## GitHub Actions Setup
 
 Create these repository secrets:
@@ -94,10 +101,13 @@ Recommended repository variables:
 - `MAX_URLS=10`
 - `MAX_CREATED=0` (`0` means no cap; useful manual runs can set this to `5`, `10`, etc.)
 - `MAX_STORIES=10`
+- `MAX_INSPIRATION=5`
 - `MAX_DISCOVERY_PAGES=32`
 - `MAX_STORY_DISCOVERY_PAGES=32`
+- `MAX_INSPIRATION_DISCOVERY_PAGES=32`
 - `MAX_DETAIL_PAGES_PER_SOURCE=16`
 - `MIN_QUALITY_SCORE=0.68`
+- `MIN_INSPIRATION_QUALITY_SCORE=0.82`
 - `SITE_BASE_URL=https://dzinerhub.framer.website`
 
 The workflow runs every day at `08:12 Europe/Istanbul`.

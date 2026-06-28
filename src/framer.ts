@@ -1,7 +1,7 @@
 import { connect, type Collection, type Field, type Framer } from "framer-api";
 import { config } from "./config.js";
 import { addExistingIdentity, createWebsiteIdentityIndex, type WebsiteIdentityIndex } from "./dedupe.js";
-import type { CandidateResult, StoryCandidate } from "./types.js";
+import type { CandidateResult, InspirationCandidate, StoryCandidate } from "./types.js";
 import { canonicalUrlKey } from "./url-identity.js";
 
 type FieldByName = Map<string, Field>;
@@ -38,6 +38,17 @@ function imageField(value: string, alt: string) {
 
 function formattedTextField(value: string) {
   return { type: "formattedText" as const, value: `<p>${escapeHtml(value)}</p>` };
+}
+
+function formattedParagraphsField(values: string[]) {
+  const value = values.length
+    ? values.map((paragraph) => `<p dir="auto">${escapeHtml(paragraph)}</p>`).join("")
+    : "";
+  return { type: "formattedText" as const, value };
+}
+
+function multiCollectionReferenceField(value: string[]) {
+  return { type: "multiCollectionReference" as const, value };
 }
 
 function setOptional(
@@ -96,6 +107,19 @@ export async function getStoriesCollection(framer: Framer): Promise<{
   const collections = await framer.getCollections();
   const collection = collections.find((candidate) => candidate.name === "Stories");
   if (!collection) throw new Error('Framer collection "Stories" was not found');
+  return {
+    collection,
+    fields: fieldMap(await collection.getFields()),
+  };
+}
+
+export async function getInspirationCollection(framer: Framer): Promise<{
+  collection: Collection;
+  fields: FieldByName;
+}> {
+  const collections = await framer.getCollections();
+  const collection = collections.find((candidate) => candidate.name === "Inspiration");
+  if (!collection) throw new Error('Framer collection "Inspiration" was not found');
   return {
     collection,
     fields: fieldMap(await collection.getFields()),
@@ -209,6 +233,27 @@ export async function getExistingStorySlugs(collection: Collection): Promise<Set
   return new Set(items.map((item) => item.slug));
 }
 
+export async function getExistingInspirationUrlKeys(collection: Collection, fields: FieldByName): Promise<Set<string>> {
+  const items = await collection.getItems();
+  const sourceFieldId = optionalFieldId(fields, "Source");
+  const keys = new Set<string>();
+
+  if (!sourceFieldId) return keys;
+
+  for (const item of items) {
+    const source = entryValue(item.fieldData[sourceFieldId]);
+    const key = canonicalUrlKey(source);
+    if (key) keys.add(key);
+  }
+
+  return keys;
+}
+
+export async function getExistingInspirationSlugs(collection: Collection): Promise<Set<string>> {
+  const items = await collection.getItems();
+  return new Set(items.map((item) => item.slug));
+}
+
 export async function addStoryItem(
   collection: Collection,
   fields: FieldByName,
@@ -224,6 +269,43 @@ export async function addStoryItem(
     [fieldId(fields, "AI Comment")]: textField(candidate.aiComment),
     [fieldId(fields, "Domain")]: textField(candidate.domain),
     ...(contentFieldId ? { [contentFieldId]: formattedTextField("") } : {}),
+  };
+
+  await collection.addItems([
+    {
+      slug: candidate.slug,
+      draft: config.draftItems,
+      fieldData,
+    },
+  ]);
+}
+
+export async function addInspirationItem(
+  framer: Framer,
+  collection: Collection,
+  fields: FieldByName,
+  candidate: InspirationCandidate,
+): Promise<void> {
+  const photo = await framer.uploadImage({
+    image: {
+      bytes: new Uint8Array(candidate.photo.bytes),
+      mimeType: candidate.photo.mimeType,
+    },
+    name: `${candidate.slug}-inspiration.jpg`,
+    altText: candidate.title,
+  });
+  const contentFieldId = optionalFieldId(fields, "Content");
+
+  const fieldData = {
+    [fieldId(fields, "Title")]: textField(candidate.title),
+    [fieldId(fields, "Photo")]: imageField(photo.url, candidate.title),
+    [fieldId(fields, "Contributors")]: multiCollectionReferenceField(candidate.contributorSlugs),
+    [fieldId(fields, "Tag")]: textField(candidate.tag),
+    [fieldId(fields, "AI Content")]: formattedParagraphsField(candidate.aiContent),
+    [fieldId(fields, "Source")]: linkField(candidate.finalUrl),
+    [fieldId(fields, "AI Comment")]: textField(candidate.aiComment),
+    [fieldId(fields, "Created time")]: dateField(new Date().toISOString()),
+    ...(contentFieldId ? { [contentFieldId]: formattedParagraphsField([]) } : {}),
   };
 
   await collection.addItems([

@@ -4,6 +4,9 @@ import type {
   CandidateResult,
   DailyReport,
   FailedWebsiteReportItem,
+  InspirationCandidate,
+  InspirationReport,
+  InspirationSyncSummary,
   SkippedWebsiteReportItem,
   StoryCandidate,
   StoryReport,
@@ -26,6 +29,10 @@ function dzinerHubLink(slug: string): string {
 
 function dzinerHubStoryLink(slug: string): string {
   return `${config.siteBaseUrl.replace(/\/+$/, "")}/stories/${slug}`;
+}
+
+function dzinerHubInspirationLink(slug: string): string {
+  return `${config.siteBaseUrl.replace(/\/+$/, "")}/inspiration/${slug}`;
 }
 
 export class ReportBuilder {
@@ -103,6 +110,46 @@ export class StoryReportBuilder {
     };
 
     await writeFile(process.env.STORY_REPORT_FILE ?? "story-report.json", `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    return report;
+  }
+}
+
+export class InspirationReportBuilder {
+  readonly created: InspirationReport["created"] = [];
+  readonly skipped: SkippedWebsiteReportItem[] = [];
+  readonly failed: FailedWebsiteReportItem[] = [];
+
+  addCreated(candidate: InspirationCandidate): void {
+    this.created.push({
+      title: candidate.title,
+      slug: candidate.slug,
+      sourceUrl: candidate.finalUrl,
+      dzinerHubLink: dzinerHubInspirationLink(candidate.slug),
+      tag: candidate.tag,
+    });
+  }
+
+  addSkipped(url: string, reason: string): void {
+    this.skipped.push({ url, reason });
+  }
+
+  addFailed(url: string, error: string): void {
+    this.failed.push({ url, error });
+  }
+
+  async write(summary: InspirationSyncSummary): Promise<InspirationReport> {
+    const report: InspirationReport = {
+      reportDate: reportDate(),
+      generatedAt: new Date().toISOString(),
+      dryRun: summary.dryRun,
+      published: summary.published,
+      summary,
+      created: this.created,
+      skipped: this.skipped,
+      failed: this.failed,
+    };
+
+    await writeFile(process.env.INSPIRATION_REPORT_FILE ?? "inspiration-report.json", `${JSON.stringify(report, null, 2)}\n`, "utf8");
     return report;
   }
 }

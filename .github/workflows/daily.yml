@@ -41,7 +41,7 @@ permissions:
 jobs:
   autopublish:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -106,6 +106,24 @@ jobs:
           STORY_REPORT_FILE: story-report.json
         run: npm run stories
 
+      - name: Run inspiration autopublisher
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish' }}
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          PUBLISH: ${{ vars.PUBLISH || 'true' }}
+          DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'false' }}
+          MAX_INSPIRATION: ${{ vars.MAX_INSPIRATION || '5' }}
+          MAX_INSPIRATION_DISCOVERY_PAGES: ${{ vars.MAX_INSPIRATION_DISCOVERY_PAGES || '32' }}
+          MIN_INSPIRATION_QUALITY_SCORE: ${{ vars.MIN_INSPIRATION_QUALITY_SCORE || '0.82' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          INSPIRATION_SOURCE_FILE: data/inspiration-sources.json
+          INSPIRATION_REPORT_FILE: inspiration-report.json
+        run: npm run inspiration
+
       - name: Refresh draft screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'refresh-draft-screenshots' }}
         env:
@@ -134,18 +152,32 @@ jobs:
             const storyReport = fs.existsSync("story-report.json")
               ? JSON.parse(fs.readFileSync("story-report.json", "utf8"))
               : null;
+            const inspirationReport = fs.existsSync("inspiration-report.json")
+              ? JSON.parse(fs.readFileSync("inspiration-report.json", "utf8"))
+              : null;
             const summary = report.summary ?? {};
             const storySummary = storyReport?.summary ?? {};
+            const inspirationSummary = inspirationReport?.summary ?? {};
             const created = report.created ?? [];
             const createdStories = storyReport?.created ?? [];
+            const createdInspiration = inspirationReport?.created ?? [];
             const failed = report.failed ?? [];
             const storyFailed = storyReport?.failed ?? [];
+            const inspirationFailed = inspirationReport?.failed ?? [];
             const addedCount = summary.created ?? created.length;
             const storyAddedCount = storySummary.created ?? createdStories.length;
-            const failedCount = (summary.failed ?? failed.length) + (storySummary.failed ?? storyFailed.length);
+            const inspirationAddedCount = inspirationSummary.created ?? createdInspiration.length;
+            const failedCount =
+              (summary.failed ?? failed.length) +
+              (storySummary.failed ?? storyFailed.length) +
+              (inspirationSummary.failed ?? inspirationFailed.length);
             const invalidCount = summary.skippedInvalid ?? 0;
             const storyInvalidCount = storySummary.skippedInvalid ?? 0;
-            const lowQualityCount = (summary.skippedLowQuality ?? 0) + (storySummary.skippedLowQuality ?? 0);
+            const inspirationInvalidCount = inspirationSummary.skippedInvalid ?? 0;
+            const lowQualityCount =
+              (summary.skippedLowQuality ?? 0) +
+              (storySummary.skippedLowQuality ?? 0) +
+              (inspirationSummary.skippedLowQuality ?? 0);
             const title = `DzinerHub Günlük Rapor - ${report.reportDate}`;
 
             const createdLines = created.length
@@ -154,17 +186,20 @@ jobs:
             const createdStoryLines = createdStories.length
               ? createdStories.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink})`).join("\n")
               : "Bugün yeni link eklenmedi.";
+            const createdInspirationLines = createdInspiration.length
+              ? createdInspiration.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink})`).join("\n")
+              : "Bugün yeni inspiration eklenmedi.";
             const statusLine = failedCount > 0
               ? `${failedCount} adayda hata oluştu. Kontrol etmek iyi olur.`
               : "Sorun yok. Site publish edildi.";
-            const skippedLine = invalidCount || storyInvalidCount || lowQualityCount
-              ? `Not: ${invalidCount + storyInvalidCount} erişilemeyen/geçersiz aday, ${lowQualityCount} düşük kalite aday elendi.`
+            const skippedLine = invalidCount || storyInvalidCount || inspirationInvalidCount || lowQualityCount
+              ? `Not: ${invalidCount + storyInvalidCount + inspirationInvalidCount} erişilemeyen/geçersiz aday, ${lowQualityCount} düşük kalite aday elendi.`
               : "";
 
             const body = [
               "@huseyinemanet",
               "",
-              `Bugün ${addedCount} site ve ${storyAddedCount} link eklendi.`,
+              `Bugün ${addedCount} site, ${storyAddedCount} link ve ${inspirationAddedCount} inspiration eklendi.`,
               "",
               statusLine,
               skippedLine,
@@ -176,6 +211,10 @@ jobs:
               "Eklenen linkler:",
               "",
               createdStoryLines,
+              "",
+              "Eklenen inspiration:",
+              "",
+              createdInspirationLines,
             ].filter(Boolean).join("\n");
 
             await github.rest.issues.create({

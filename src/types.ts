@@ -142,3 +142,53 @@ export interface StoryReport {
   skipped: SkippedWebsiteReportItem[];
   failed: FailedWebsiteReportItem[];
 }
+
+export interface InspirationCandidate {
+  sourceUrl: string;
+  finalUrl: string;
+  title: string;
+  tag: string;
+  aiComment: string;
+  aiContent: string[];
+  contributorSlugs: string[];
+  photo: {
+    bytes: Buffer;
+    mimeType: "image/jpeg";
+    sourceUrl: string;
+    width: number;
+    height: number;
+  };
+  qualityScore: number;
+  slug: string;
+}
+
+export interface InspirationSyncSummary {
+  discovered: number;
+  scanned: number;
+  skippedDuplicate: number;
+  skippedInvalid: number;
+  skippedLowQuality: number;
+  failed: number;
+  created: number;
+  dryRun: boolean;
+  published: boolean;
+}
+
+export interface CreatedInspirationReportItem {
+  title: string;
+  slug: string;
+  sourceUrl: string;
+  dzinerHubLink: string;
+  tag: string;
+}
+
+export interface InspirationReport {
+  reportDate: string;
+  generatedAt: string;
+  dryRun: boolean;
+  published: boolean;
+  summary: InspirationSyncSummary;
+  created: CreatedInspirationReportItem[];
+  skipped: SkippedWebsiteReportItem[];
+  failed: FailedWebsiteReportItem[];
+}
