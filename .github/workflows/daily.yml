@@ -85,6 +85,7 @@ jobs:
           SCREENSHOT_PROVIDER: screenshotapi
           SCREENSHOTAPI_API_KEY: ${{ secrets.SCREENSHOTAPI_API_KEY }}
           REFRESH_DRAFT_SCREENSHOT_LIMIT: ${{ inputs.refresh_limit }}
+          REFRESH_SCREENSHOT_FIELDS: thumbnail
         run: npm run refresh:draft-screenshots
 
       - name: Create daily report issue

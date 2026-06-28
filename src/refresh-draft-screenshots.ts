@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { connectFramer, getWebsitesCollection } from "./framer.js";
-import { captureWithScreenshotApi } from "./screenshot-api.js";
+import { captureThumbnailWithScreenshotApi, captureWithScreenshotApi } from "./screenshot-api.js";
 
 function optionalNumberEnv(name: string): number | null {
   const value = process.env[name];
@@ -52,6 +52,7 @@ async function main(): Promise<void> {
       .map((slug) => slug.trim())
       .filter(Boolean),
   );
+  const refreshFields = process.env.REFRESH_SCREENSHOT_FIELDS === "all" ? "all" : "thumbnail";
 
   const framer = await connectFramer();
   let updated = 0;
@@ -68,6 +69,7 @@ async function main(): Promise<void> {
 
     const draftItems = items.filter((item) => item.draft);
     console.log(`Found ${draftItems.length} draft website item(s).`);
+    console.log(`Refreshing ${refreshFields === "all" ? "thumbnail and full image" : "thumbnail only"}.`);
 
     for (const item of draftItems) {
       if (limit && updated >= limit) break;
@@ -88,7 +90,14 @@ async function main(): Promise<void> {
 
       try {
         console.log(`Refreshing ${title}: ${screenshotUrl}`);
-        const screenshot = await captureWithScreenshotApi(config.screenshotApiKey, screenshotUrl);
+        const screenshot =
+          refreshFields === "all"
+            ? await captureWithScreenshotApi(config.screenshotApiKey, screenshotUrl)
+            : {
+                thumbnail: await captureThumbnailWithScreenshotApi(config.screenshotApiKey, screenshotUrl),
+                fullPage: null,
+                mimeType: "image/jpeg" as const,
+              };
         const thumbnail = await framer.uploadImage({
           image: {
             bytes: new Uint8Array(screenshot.thumbnail),
@@ -97,21 +106,26 @@ async function main(): Promise<void> {
           name: `${item.slug}-thumbnail-screenshotapi.jpg`,
           altText: `${title} website thumbnail`,
         });
-        const fullImage = await framer.uploadImage({
-          image: {
-            bytes: new Uint8Array(screenshot.fullPage),
-            mimeType: screenshot.mimeType,
-          },
-          name: `${item.slug}-full-screenshotapi.jpg`,
-          altText: `${title} full page website screenshot`,
-        });
+
+        const fieldData: Record<string, ReturnType<typeof imageField>> = {
+          [thumbnailFieldId]: imageField(thumbnail.url, `${title} thumbnail`),
+        };
+
+        if (screenshot.fullPage) {
+          const fullImage = await framer.uploadImage({
+            image: {
+              bytes: new Uint8Array(screenshot.fullPage),
+              mimeType: screenshot.mimeType,
+            },
+            name: `${item.slug}-full-screenshotapi.jpg`,
+            altText: `${title} full page website screenshot`,
+          });
+          fieldData[fullImageFieldId] = imageField(fullImage.url, `${title} full screenshot`);
+        }
 
         await item.setAttributes({
           draft: item.draft,
-          fieldData: {
-            [thumbnailFieldId]: imageField(thumbnail.url, `${title} thumbnail`),
-            [fullImageFieldId]: imageField(fullImage.url, `${title} full screenshot`),
-          },
+          fieldData,
         });
         updated += 1;
         console.log(`Updated ${title}`);

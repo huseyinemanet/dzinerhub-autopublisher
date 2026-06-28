@@ -109,6 +109,10 @@ export async function captureWithScreenshotApi(apiKey: string, url: string) {
   };
 }
 
+export async function captureThumbnailWithScreenshotApi(apiKey: string, url: string) {
+  return normalizeThumbnail(await fetchScreenshotApiImage({ apiKey, url, kind: "thumbnail" }));
+}
+
 export async function normalizeThumbnail(image: Buffer): Promise<Buffer> {
   return sharp(image)
     .resize(thumbnailSize.width, thumbnailSize.height, {
