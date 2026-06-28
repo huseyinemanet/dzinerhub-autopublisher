@@ -7,6 +7,7 @@
     "check": "tsc --noEmit",
     "start": "tsx src/index.ts",
     "dry": "DRY_RUN=true tsx src/index.ts",
+    "refresh:draft-screenshots": "tsx src/refresh-draft-screenshots.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "install:browsers": "playwright install chromium"
   },

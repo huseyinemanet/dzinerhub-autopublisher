@@ -2,6 +2,20 @@ name: Daily autopublish
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "What should this manual run do?"
+        required: true
+        default: "autopublish"
+        type: choice
+        options:
+          - autopublish
+          - refresh-draft-screenshots
+      refresh_limit:
+        description: "Optional max number of draft screenshots to refresh"
+        required: false
+        default: ""
+        type: string
   schedule:
     # Every day at 08:12 Europe/Istanbul.
     - cron: "12 5 * * *"
@@ -32,6 +46,7 @@ jobs:
         run: npm ci
 
       - name: Install browser
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish' }}
         run: npx playwright install --with-deps chromium
 
       - name: TypeScript check
@@ -41,6 +56,7 @@ jobs:
         run: npm test
 
       - name: Run autopublisher
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish' }}
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
@@ -61,8 +77,18 @@ jobs:
           REF_PARAM: dzinerhub.com
         run: npm start
 
+      - name: Refresh draft screenshots
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'refresh-draft-screenshots' }}
+        env:
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          SCREENSHOT_PROVIDER: screenshotapi
+          SCREENSHOTAPI_API_KEY: ${{ secrets.SCREENSHOTAPI_API_KEY }}
+          REFRESH_DRAFT_SCREENSHOT_LIMIT: ${{ inputs.refresh_limit }}
+        run: npm run refresh:draft-screenshots
+
       - name: Create daily report issue
-        if: always()
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish') }}
         uses: actions/github-script@v7
         with:
           script: |
