@@ -86,7 +86,7 @@ Recommended repository variables:
 - `DRAFT_ITEMS=false`
 - `MAX_URLS=10`
 - `MAX_CREATED=0` (`0` means no cap; useful manual runs can set this to `5`, `10`, etc.)
-- `MAX_DISCOVERY_PAGES=12`
+- `MAX_DISCOVERY_PAGES=32`
 - `MAX_DETAIL_PAGES_PER_SOURCE=16`
 - `MIN_QUALITY_SCORE=0.68`
 - `SITE_BASE_URL=https://dzinerhub.framer.website`

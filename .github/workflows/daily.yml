@@ -80,7 +80,7 @@ jobs:
           DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'false' }}
           MAX_URLS: ${{ inputs.max_urls || vars.MAX_URLS || '10' }}
           MAX_CREATED: ${{ inputs.max_created || '' }}
-          MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '12' }}
+          MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '32' }}
           MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
           MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
           SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}

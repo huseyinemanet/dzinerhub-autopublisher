@@ -27,7 +27,7 @@ export const config = {
   draftItems: booleanEnv("DRAFT_ITEMS", false),
   maxUrls: numberEnv("MAX_URLS", 10),
   maxCreated: numberEnv("MAX_CREATED", 0),
-  maxDiscoveryPages: numberEnv("MAX_DISCOVERY_PAGES", 12),
+  maxDiscoveryPages: numberEnv("MAX_DISCOVERY_PAGES", 32),
   maxDetailPagesPerSource: numberEnv("MAX_DETAIL_PAGES_PER_SOURCE", 16),
   minQualityScore: numberEnv("MIN_QUALITY_SCORE", 0.68),
   refParam: process.env.REF_PARAM ?? "dzinerhub.com",
