@@ -25,7 +25,7 @@ export const config = {
   readFramerInDryRun: booleanEnv("READ_FRAMER_IN_DRY_RUN", true),
   publish: booleanEnv("PUBLISH", false),
   draftItems: booleanEnv("DRAFT_ITEMS", false),
-  maxUrls: numberEnv("MAX_URLS", 5),
+  maxUrls: numberEnv("MAX_URLS", 10),
   maxDiscoveryPages: numberEnv("MAX_DISCOVERY_PAGES", 12),
   maxDetailPagesPerSource: numberEnv("MAX_DETAIL_PAGES_PER_SOURCE", 16),
   minQualityScore: numberEnv("MIN_QUALITY_SCORE", 0.68),
