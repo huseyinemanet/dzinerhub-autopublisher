@@ -1,4 +1,11 @@
+import sharp from "sharp";
+
 export type ScreenshotApiCaptureKind = "thumbnail" | "fullPage";
+
+export const thumbnailSize = {
+  width: 640,
+  height: 960,
+} as const;
 
 interface ScreenshotApiOptions {
   apiKey: string;
@@ -38,8 +45,8 @@ async function fetchScreenshotApiImage(options: ScreenshotApiOptions): Promise<B
     apiKey: options.apiKey,
     url: options.url,
     fullPage: isFullPage,
-    viewportWidth: 1440,
-    viewportHeight: isFullPage ? 1600 : 1100,
+    viewportWidth: isFullPage ? 1440 : 1280,
+    viewportHeight: isFullPage ? 1600 : 1920,
     quality: isFullPage ? 82 : 86,
   });
 
@@ -89,14 +96,28 @@ function extractImageFromJson(payload: Record<string, unknown>): Buffer {
 }
 
 export async function captureWithScreenshotApi(apiKey: string, url: string) {
-  const [thumbnail, fullPage] = await Promise.all([
+  const [rawThumbnail, fullPage] = await Promise.all([
     fetchScreenshotApiImage({ apiKey, url, kind: "thumbnail" }),
     fetchScreenshotApiImage({ apiKey, url, kind: "fullPage" }),
   ]);
+  const thumbnail = await normalizeThumbnail(rawThumbnail);
 
   return {
     thumbnail,
     fullPage,
     mimeType: "image/jpeg" as const,
   };
+}
+
+export async function normalizeThumbnail(image: Buffer): Promise<Buffer> {
+  return sharp(image)
+    .resize(thumbnailSize.width, thumbnailSize.height, {
+      fit: "cover",
+      position: "top",
+    })
+    .jpeg({
+      quality: 88,
+      mozjpeg: true,
+    })
+    .toBuffer();
 }

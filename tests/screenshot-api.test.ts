@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildScreenshotApiUrl } from "../src/screenshot-api.js";
+import sharp from "sharp";
+import { buildScreenshotApiUrl, normalizeThumbnail, thumbnailSize } from "../src/screenshot-api.js";
 
 test("builds ScreenshotAPI request URL with DzinerHub defaults", () => {
   const requestUrl = new URL(
@@ -26,4 +27,24 @@ test("builds ScreenshotAPI request URL with DzinerHub defaults", () => {
   assert.equal(requestUrl.searchParams.get("fullPage"), "true");
   assert.equal(requestUrl.searchParams.get("blockCookieBanners"), "true");
   assert.equal(requestUrl.searchParams.get("doScroll"), "true");
+});
+
+test("normalizes thumbnails to 640x960", async () => {
+  const input = await sharp({
+    create: {
+      width: 1280,
+      height: 1920,
+      channels: 3,
+      background: "#111111",
+    },
+  })
+    .jpeg()
+    .toBuffer();
+
+  const output = await normalizeThumbnail(input);
+  const metadata = await sharp(output).metadata();
+
+  assert.equal(metadata.width, thumbnailSize.width);
+  assert.equal(metadata.height, thumbnailSize.height);
+  assert.equal(metadata.format, "jpeg");
 });
