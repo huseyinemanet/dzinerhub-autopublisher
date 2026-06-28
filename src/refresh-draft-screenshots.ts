@@ -107,6 +107,7 @@ async function main(): Promise<void> {
         });
 
         await item.setAttributes({
+          draft: item.draft,
           fieldData: {
             [thumbnailFieldId]: imageField(thumbnail.url, `${title} thumbnail`),
             [fullImageFieldId]: imageField(fullImage.url, `${title} full screenshot`),
