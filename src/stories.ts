@@ -19,9 +19,9 @@ import { withBrowser } from "./screenshot.js";
 
 const storyClassificationSchema = z.object({
   title: z.string().min(3).max(140),
-  description: z.string().max(260).default(""),
+  description: z.string().max(320).default(""),
   tags: z.array(z.string()).default([]),
-  aiComment: z.string().min(20).max(420),
+  aiComment: z.string().min(20).max(520),
   qualityScore: z.number().min(0).max(1),
   shouldPublish: z.boolean(),
 });
@@ -181,7 +181,10 @@ async function discoverStoryUrls(browser: Browser, sourceUrls: string[], limit: 
 async function readStoryMetadata(browser: Browser, url: string): Promise<{
   finalUrl: string;
   title: string;
+  ogTitle: string;
   description: string;
+  headings: string[];
+  articleText: string[];
   statusCode: number | null;
   visibleText: string[];
 }> {
@@ -195,24 +198,44 @@ async function readStoryMetadata(browser: Browser, url: string): Promise<{
 
     const finalUrl = page.url();
     const title = (await page.title().catch(() => "")).trim();
+    const ogTitle = ((await page.locator('meta[property="og:title"]').first().getAttribute("content").catch(() => "")) || "").trim();
     const description =
       (await page.locator('meta[name="description"]').first().getAttribute("content").catch(() => "")) ||
       (await page.locator('meta[property="og:description"]').first().getAttribute("content").catch(() => "")) ||
       "";
+    const headings = await page
+      .evaluate(() =>
+        [...document.querySelectorAll("h1, h2")]
+          .map((heading) => heading.textContent?.trim() ?? "")
+          .filter((text) => text.length >= 4)
+          .slice(0, 10),
+      )
+      .catch(() => []);
+    const articleText = await page
+      .evaluate(() =>
+        [...document.querySelectorAll("article p, main p, [role='main'] p")]
+          .map((paragraph) => paragraph.textContent?.trim() ?? "")
+          .filter((text) => text.length >= 60)
+          .slice(0, 12),
+      )
+      .catch(() => []);
     const visibleText = await page
       .evaluate(() =>
         (document.body?.innerText ?? "")
           .split("\n")
           .map((line) => line.trim())
-          .filter(Boolean)
-          .slice(0, 18),
+          .filter((line) => line.length >= 8)
+          .slice(0, 32),
       )
       .catch(() => []);
 
     return {
       finalUrl,
       title,
+      ogTitle,
       description: description.trim(),
+      headings,
+      articleText,
       statusCode: response?.status() ?? null,
       visibleText,
     };
@@ -223,7 +246,14 @@ async function readStoryMetadata(browser: Browser, url: string): Promise<{
 
 function invalidStoryReason(metadata: Awaited<ReturnType<typeof readStoryMetadata>>): string {
   if (metadata.statusCode && metadata.statusCode >= 400) return `http ${metadata.statusCode}`;
-  const text = [metadata.title, metadata.description, ...metadata.visibleText.slice(0, 6)].join(" ").toLowerCase();
+  const text = [
+    metadata.title,
+    metadata.ogTitle,
+    metadata.description,
+    ...metadata.headings.slice(0, 4),
+    ...metadata.articleText.slice(0, 3),
+    ...metadata.visibleText.slice(0, 6),
+  ].join(" ").toLowerCase();
   if (!metadata.title && !metadata.description) return "missing title and description";
   if (/access denied|are you human|captcha|enable javascript|just a moment|not found|page unavailable|verify you are human/.test(text)) {
     return "blocked or error page";
@@ -236,7 +266,10 @@ async function classifyStory(args: {
   finalUrl: string;
   sourceUrl: string;
   title: string;
+  ogTitle: string;
   description: string;
+  headings: string[];
+  articleText: string[];
   visibleText: string[];
 }): Promise<Omit<StoryCandidate, "slug"> & { shouldPublish: boolean }> {
   if (!config.deepseekApiKey) {
@@ -257,7 +290,7 @@ async function classifyStory(args: {
         {
           role: "system",
           content:
-            "You curate links for DzinerHub Stories: design, AI, product, frontend, startup, growth, UX, and creative technology links. Return strict JSON only. Keep it practical and concise. Do not publish spam, job posts, login pages, generic homepages, events, discounts, or purely promotional pages.",
+            "You curate links for DzinerHub Stories: design, AI, product, frontend, startup, growth, UX, and creative technology links. Return strict JSON only. Read the page evidence carefully and infer what the link is actually about. Keep it practical, specific, and concise. Do not publish spam, job posts, login pages, generic homepages, events, discounts, or purely promotional pages.",
         },
         {
           role: "user",
@@ -265,9 +298,9 @@ async function classifyStory(args: {
             task: "Decide whether this link is worth adding to a daily curated links CMS.",
             requiredShape: {
               title: "clean link title",
-              description: "short neutral summary, max 180 characters",
+              description: "short neutral explanation of what the link is about, max 220 characters",
               tags: ["Design", "AI", "Product", "Frontend"],
-              aiComment: "one useful editorial note explaining why this is worth opening, 20-55 words",
+              aiComment: "one useful editorial note explaining why this is worth opening, 35-75 words",
               qualityScore: "number from 0 to 1",
               shouldPublish: "boolean",
             },
@@ -275,8 +308,11 @@ async function classifyStory(args: {
             link: {
               url: args.finalUrl,
               title: args.title,
+              ogTitle: args.ogTitle,
               description: args.description,
-              visibleText: args.visibleText.slice(0, 10),
+              headings: args.headings,
+              articleText: args.articleText,
+              visibleText: args.visibleText.slice(0, 18),
             },
           }),
         },
@@ -386,7 +422,10 @@ async function main(): Promise<void> {
             finalUrl: metadata.finalUrl,
             sourceUrl: url,
             title: metadata.title,
+            ogTitle: metadata.ogTitle,
             description: metadata.description,
+            headings: metadata.headings,
+            articleText: metadata.articleText,
             visibleText: metadata.visibleText,
           });
 
