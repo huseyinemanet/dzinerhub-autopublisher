@@ -1,0 +1,57 @@
+name: Daily autopublish
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every day at 08:12 Europe/Istanbul.
+    - cron: "12 5 * * *"
+
+concurrency:
+  group: dzinerhub-autopublisher
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  autopublish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: TypeScript check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Run autopublisher
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          READ_FRAMER_IN_DRY_RUN: ${{ vars.READ_FRAMER_IN_DRY_RUN || 'true' }}
+          PUBLISH: ${{ vars.PUBLISH || 'false' }}
+          DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'true' }}
+          MAX_URLS: ${{ vars.MAX_URLS || '10' }}
+          MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '12' }}
+          MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
+          MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
+          REF_PARAM: dzinerhub.com
+        run: npm start

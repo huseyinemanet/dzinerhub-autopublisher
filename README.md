@@ -1,0 +1,118 @@
+# DzinerHub Autopublisher
+
+Automated daily content pipeline for the DzinerHub Framer CMS `Websites` collection.
+
+It discovers curated website inspiration from sources like Land-book, Recent Design, Craftwork, Landingfolio, SiteInspire, Lapa Ninja, One Page Love, and similar galleries; captures screenshots; asks DeepSeek for metadata and art-direction commentary; then creates Framer CMS items.
+
+## Features
+
+- Discovers candidate websites from curated showcase pages in `data/sources.json`
+- Captures thumbnail and full-page screenshots with Playwright
+- Extracts title, description, canonical URL, favicon, content type, and visible page context
+- Uses DeepSeek to classify categories, types, platforms, styles, typography, quality score, and publish suitability
+- Builds a visual profile from the full-page screenshot and generates an art-director style `AI Comment`
+- Skips exact-page duplicates using normalized URL identity
+- Filters curator subdomains, asset/CDN URLs, Product Hunt links, utility pages, non-HTML pages, weak pages, and blank screenshots
+- Writes accepted items into the Framer `Websites` CMS collection
+- Supports draft-only review mode and optional Framer publishing
+- Runs daily through GitHub Actions
+
+## Safety Defaults
+
+The GitHub Action defaults to:
+
+- `DRY_RUN=false`
+- `PUBLISH=false`
+- `DRAFT_ITEMS=true`
+
+That means the scheduled workflow creates new CMS items as drafts and does not publish the Framer site unless you explicitly change repository variables.
+
+## Local Setup
+
+Install dependencies:
+
+```bash
+npm install
+npm run install:browsers
+```
+
+Create `.env` from `.env.example` and fill in the keys:
+
+```bash
+cp .env.example .env
+```
+
+Run a safe dry run:
+
+```bash
+npm run dry
+```
+
+Run checks:
+
+```bash
+npm run check
+npm test
+```
+
+Run a real draft sync:
+
+```bash
+DRY_RUN=false PUBLISH=false DRAFT_ITEMS=true npm start
+```
+
+Run a real sync with publish enabled:
+
+```bash
+DRY_RUN=false PUBLISH=true DRAFT_ITEMS=false npm start
+```
+
+## GitHub Actions Setup
+
+Create these repository secrets:
+
+- `DEEPSEEK_API_KEY`
+- `FRAMER_API_KEY`
+- `FRAMER_PROJECT_URL`
+
+Recommended repository variables:
+
+- `DEEPSEEK_MODEL=deepseek-v4-flash`
+- `DRY_RUN=false`
+- `READ_FRAMER_IN_DRY_RUN=true`
+- `PUBLISH=false`
+- `DRAFT_ITEMS=true`
+- `MAX_URLS=10`
+- `MAX_DISCOVERY_PAGES=12`
+- `MAX_DETAIL_PAGES_PER_SOURCE=16`
+- `MIN_QUALITY_SCORE=0.68`
+
+The workflow runs every day at `08:12 Europe/Istanbul`.
+
+## Source Configuration
+
+Edit `data/sources.json` to control discovery sources.
+
+- `discoveryPages` contains curator/gallery pages to crawl.
+- `urls` is optional and only for one-off manual candidates.
+
+## Duplicate Policy
+
+Duplicate detection is exact-page based.
+
+These are treated as the same page:
+
+- `https://aave.com`
+- `https://www.aave.com/`
+- `https://aave.com/?ref=dzinerhub.com&utm_source=x`
+
+These are treated as different pages:
+
+- `https://apple.com/`
+- `https://apple.com/iphone-17e/`
+
+When a duplicate is found, the existing CMS item is left untouched and the candidate is skipped.
+
+## License
+
+MIT
