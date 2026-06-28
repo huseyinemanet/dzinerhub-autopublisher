@@ -7,6 +7,8 @@ export const thumbnailSize = {
   height: 960,
 } as const;
 
+export const fullImageWidth = 1500;
+
 interface ScreenshotApiOptions {
   apiKey: string;
   url: string;
@@ -96,11 +98,12 @@ function extractImageFromJson(payload: Record<string, unknown>): Buffer {
 }
 
 export async function captureWithScreenshotApi(apiKey: string, url: string) {
-  const [rawThumbnail, fullPage] = await Promise.all([
+  const [rawThumbnail, rawFullPage] = await Promise.all([
     fetchScreenshotApiImage({ apiKey, url, kind: "thumbnail" }),
     fetchScreenshotApiImage({ apiKey, url, kind: "fullPage" }),
   ]);
   const thumbnail = await normalizeThumbnail(rawThumbnail);
+  const fullPage = await normalizeFullImage(rawFullPage);
 
   return {
     thumbnail,
@@ -113,6 +116,10 @@ export async function captureThumbnailWithScreenshotApi(apiKey: string, url: str
   return normalizeThumbnail(await fetchScreenshotApiImage({ apiKey, url, kind: "thumbnail" }));
 }
 
+export async function captureFullImageWithScreenshotApi(apiKey: string, url: string) {
+  return normalizeFullImage(await fetchScreenshotApiImage({ apiKey, url, kind: "fullPage" }));
+}
+
 export async function normalizeThumbnail(image: Buffer): Promise<Buffer> {
   return sharp(image)
     .resize(thumbnailSize.width, thumbnailSize.height, {
@@ -121,6 +128,19 @@ export async function normalizeThumbnail(image: Buffer): Promise<Buffer> {
     })
     .jpeg({
       quality: 88,
+      mozjpeg: true,
+    })
+    .toBuffer();
+}
+
+export async function normalizeFullImage(image: Buffer): Promise<Buffer> {
+  return sharp(image)
+    .resize({
+      width: fullImageWidth,
+      withoutEnlargement: false,
+    })
+    .jpeg({
+      quality: 84,
       mozjpeg: true,
     })
     .toBuffer();
