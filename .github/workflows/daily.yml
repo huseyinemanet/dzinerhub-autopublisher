@@ -117,49 +117,34 @@ jobs:
             const created = report.created ?? [];
             const skipped = report.skipped ?? [];
             const failed = report.failed ?? [];
-            const title = `DzinerHub Daily Autopublish Report - ${report.reportDate}`;
+            const addedCount = summary.created ?? created.length;
+            const failedCount = summary.failed ?? failed.length;
+            const invalidCount = summary.skippedInvalid ?? 0;
+            const lowQualityCount = summary.skippedLowQuality ?? 0;
+            const title = `DzinerHub Günlük Rapor - ${report.reportDate}`;
 
             const createdLines = created.length
-              ? created.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink}) - [source](${item.externalLink})`).join("\n")
-              : "No new websites were added today.";
-            const skippedLines = skipped.slice(0, 20).map((item) => `- ${item.url} — ${item.reason}`).join("\n") || "No skipped items.";
-            const failedLines = failed.map((item) => `- ${item.url} — ${item.error}`).join("\n") || "No failures.";
+              ? created.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink})`).join("\n")
+              : "Bugün yeni site eklenmedi.";
+            const statusLine = failedCount > 0
+              ? `${failedCount} adayda hata oluştu. Kontrol etmek iyi olur.`
+              : "Sorun yok. Site publish edildi.";
+            const skippedLine = invalidCount || lowQualityCount
+              ? `Not: ${invalidCount} erişilemeyen/geçersiz aday, ${lowQualityCount} düşük kalite aday elendi.`
+              : "";
 
             const body = [
               "@huseyinemanet",
               "",
-              `Daily DzinerHub autopublish finished at ${report.generatedAt}.`,
+              `Bugün ${addedCount} site eklendi.`,
               "",
-              "## Summary",
+              statusLine,
+              skippedLine,
               "",
-              `- Added: ${summary.created ?? 0}`,
-              `- Published: ${report.published ? "yes" : "no"}`,
-              `- Dry run: ${report.dryRun ? "yes" : "no"}`,
-              `- Scanned: ${summary.scanned ?? 0}`,
-              `- Discovered: ${summary.discovered ?? 0}`,
-              `- Duplicates skipped: ${summary.skippedDuplicate ?? 0}`,
-              `- Invalid skipped: ${summary.skippedInvalid ?? 0}`,
-              `- Low-quality skipped: ${summary.skippedLowQuality ?? 0}`,
-              `- Failed: ${summary.failed ?? 0}`,
-              "",
-              "## Added Websites",
+              "Eklenen siteler:",
               "",
               createdLines,
-              "",
-              "<details>",
-              "<summary>Skipped candidates</summary>",
-              "",
-              skippedLines,
-              "",
-              "</details>",
-              "",
-              "<details>",
-              "<summary>Failures</summary>",
-              "",
-              failedLines,
-              "",
-              "</details>",
-            ].join("\n");
+            ].filter(Boolean).join("\n");
 
             await github.rest.issues.create({
               owner: context.repo.owner,
