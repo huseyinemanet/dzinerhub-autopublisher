@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   autopublish:
@@ -53,5 +54,77 @@ jobs:
           MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '12' }}
           MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
           MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          REPORT_FILE: autopublisher-report.json
           REF_PARAM: dzinerhub.com
         run: npm start
+
+      - name: Create daily report issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = "autopublisher-report.json";
+
+            if (!fs.existsSync(path)) {
+              core.warning("No autopublisher report file was found.");
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(path, "utf8"));
+            const summary = report.summary ?? {};
+            const created = report.created ?? [];
+            const skipped = report.skipped ?? [];
+            const failed = report.failed ?? [];
+            const title = `DzinerHub Daily Autopublish Report - ${report.reportDate}`;
+
+            const createdLines = created.length
+              ? created.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink}) - [source](${item.externalLink})`).join("\n")
+              : "No new websites were added today.";
+            const skippedLines = skipped.slice(0, 20).map((item) => `- ${item.url} — ${item.reason}`).join("\n") || "No skipped items.";
+            const failedLines = failed.map((item) => `- ${item.url} — ${item.error}`).join("\n") || "No failures.";
+
+            const body = [
+              "@huseyinemanet",
+              "",
+              `Daily DzinerHub autopublish finished at ${report.generatedAt}.`,
+              "",
+              "## Summary",
+              "",
+              `- Added: ${summary.created ?? 0}`,
+              `- Published: ${report.published ? "yes" : "no"}`,
+              `- Dry run: ${report.dryRun ? "yes" : "no"}`,
+              `- Scanned: ${summary.scanned ?? 0}`,
+              `- Discovered: ${summary.discovered ?? 0}`,
+              `- Duplicates skipped: ${summary.skippedDuplicate ?? 0}`,
+              `- Invalid skipped: ${summary.skippedInvalid ?? 0}`,
+              `- Low-quality skipped: ${summary.skippedLowQuality ?? 0}`,
+              `- Failed: ${summary.failed ?? 0}`,
+              "",
+              "## Added Websites",
+              "",
+              createdLines,
+              "",
+              "<details>",
+              "<summary>Skipped candidates</summary>",
+              "",
+              skippedLines,
+              "",
+              "</details>",
+              "",
+              "<details>",
+              "<summary>Failures</summary>",
+              "",
+              failedLines,
+              "",
+              "</details>",
+            ].join("\n");
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["autopublisher-report"],
+            });

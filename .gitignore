@@ -4,5 +4,6 @@ node_modules/
 !.env.example
 screenshots/
 dist/
+autopublisher-report.json
 *.log
 .DS_Store

@@ -67,3 +67,32 @@ export interface SyncSummary {
   dryRun: boolean;
   published: boolean;
 }
+
+export interface CreatedWebsiteReportItem {
+  title: string;
+  slug: string;
+  externalLink: string;
+  dzinerHubLink: string;
+  qualityScore: number;
+}
+
+export interface SkippedWebsiteReportItem {
+  url: string;
+  reason: string;
+}
+
+export interface FailedWebsiteReportItem {
+  url: string;
+  error: string;
+}
+
+export interface DailyReport {
+  reportDate: string;
+  generatedAt: string;
+  dryRun: boolean;
+  published: boolean;
+  summary: SyncSummary;
+  created: CreatedWebsiteReportItem[];
+  skipped: SkippedWebsiteReportItem[];
+  failed: FailedWebsiteReportItem[];
+}

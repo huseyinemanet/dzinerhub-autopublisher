@@ -1,0 +1,56 @@
+import { writeFile } from "fs/promises";
+import { config } from "./config.js";
+import type { CandidateResult, DailyReport, FailedWebsiteReportItem, SkippedWebsiteReportItem, SyncSummary } from "./types.js";
+
+function reportDate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function dzinerHubLink(slug: string): string {
+  return `${config.siteBaseUrl.replace(/\/+$/, "")}/websites/${slug}`;
+}
+
+export class ReportBuilder {
+  readonly created: DailyReport["created"] = [];
+  readonly skipped: SkippedWebsiteReportItem[] = [];
+  readonly failed: FailedWebsiteReportItem[] = [];
+
+  addCreated(candidate: CandidateResult): void {
+    this.created.push({
+      title: candidate.classification.title,
+      slug: candidate.slug,
+      externalLink: candidate.externalLink,
+      dzinerHubLink: dzinerHubLink(candidate.slug),
+      qualityScore: candidate.classification.qualityScore,
+    });
+  }
+
+  addSkipped(url: string, reason: string): void {
+    this.skipped.push({ url, reason });
+  }
+
+  addFailed(url: string, error: string): void {
+    this.failed.push({ url, error });
+  }
+
+  async write(summary: SyncSummary): Promise<DailyReport> {
+    const report: DailyReport = {
+      reportDate: reportDate(),
+      generatedAt: new Date().toISOString(),
+      dryRun: summary.dryRun,
+      published: summary.published,
+      summary,
+      created: this.created,
+      skipped: this.skipped,
+      failed: this.failed,
+    };
+
+    await writeFile(config.reportFile, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    return report;
+  }
+}

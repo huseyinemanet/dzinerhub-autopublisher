@@ -17,15 +17,15 @@ It discovers curated website inspiration from sources like Land-book, Recent Des
 - Supports draft-only review mode and optional Framer publishing
 - Runs daily through GitHub Actions
 
-## Safety Defaults
+## GitHub Action Defaults
 
 The GitHub Action defaults to:
 
 - `DRY_RUN=false`
-- `PUBLISH=false`
-- `DRAFT_ITEMS=true`
+- `PUBLISH=true`
+- `DRAFT_ITEMS=false`
 
-That means the scheduled workflow creates new CMS items as drafts and does not publish the Framer site unless you explicitly change repository variables.
+That means the scheduled workflow creates new CMS items, publishes the Framer site, and opens a daily GitHub issue report with the added website links.
 
 ## Local Setup
 
@@ -80,14 +80,17 @@ Recommended repository variables:
 - `DEEPSEEK_MODEL=deepseek-v4-flash`
 - `DRY_RUN=false`
 - `READ_FRAMER_IN_DRY_RUN=true`
-- `PUBLISH=false`
-- `DRAFT_ITEMS=true`
+- `PUBLISH=true`
+- `DRAFT_ITEMS=false`
 - `MAX_URLS=10`
 - `MAX_DISCOVERY_PAGES=12`
 - `MAX_DETAIL_PAGES_PER_SOURCE=16`
 - `MIN_QUALITY_SCORE=0.68`
+- `SITE_BASE_URL=https://dzinerhub.framer.website`
 
 The workflow runs every day at `08:12 Europe/Istanbul`.
+
+After each run, the workflow creates a GitHub issue titled `DzinerHub Daily Autopublish Report - YYYY-MM-DD`. The issue mentions `@huseyinemanet`, includes the number of created items, publish status, and the links for newly added websites.
 
 ## Source Configuration
 

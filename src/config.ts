@@ -30,4 +30,6 @@ export const config = {
   refParam: process.env.REF_PARAM ?? "dzinerhub.com",
   sourceFile: process.env.SOURCE_FILE ?? "data/sources.json",
   deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
+  reportFile: process.env.REPORT_FILE ?? "autopublisher-report.json",
+  siteBaseUrl: process.env.SITE_BASE_URL ?? "https://dzinerhub.framer.website",
 };

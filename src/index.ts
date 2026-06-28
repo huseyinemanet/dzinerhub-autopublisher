@@ -19,6 +19,7 @@ import {
 import { discoverCandidates } from "./discover.js";
 import { appendRefParam, domainFromUrl, normalizeUrl, slugForWebsite } from "./slug.js";
 import { canonicalUrlKey, urlIdentityKeys } from "./url-identity.js";
+import { ReportBuilder } from "./report.js";
 import { loadManualSources, loadSourceFile } from "./sources.js";
 import { captureWebsite, withBrowser } from "./screenshot.js";
 import type { CandidateResult, SyncSummary } from "./types.js";
@@ -93,6 +94,7 @@ async function connectFramerSafely() {
 }
 
 async function main(): Promise<void> {
+  const report = new ReportBuilder();
   const summary: SyncSummary = {
     discovered: 0,
     scanned: 0,
@@ -139,6 +141,7 @@ async function main(): Promise<void> {
         const rejectReason = candidateRejectReason(url, curatorHosts);
         if (rejectReason) {
           summary.skippedInvalid += 1;
+          report.addSkipped(url, rejectReason);
           console.log(`Skipped invalid: ${url} (${rejectReason})`);
           continue;
         }
@@ -147,6 +150,7 @@ async function main(): Promise<void> {
         if (duplicateKey) {
           summary.skippedDuplicate += 1;
           summary.skippedExisting += 1;
+          report.addSkipped(url, `duplicate: matching URL ${duplicateKey}`);
           console.log(`Skipped duplicate: ${url} (matching URL ${duplicateKey})`);
           continue;
         }
@@ -157,6 +161,7 @@ async function main(): Promise<void> {
         if (duplicateReason) {
           summary.skippedDuplicate += 1;
           summary.skippedExisting += 1;
+          report.addSkipped(url, `duplicate: ${duplicateReason}`);
           console.log(`Skipped duplicate: ${candidate.classification.title} (${duplicateReason})`);
           continue;
         }
@@ -168,6 +173,7 @@ async function main(): Promise<void> {
           candidate.classification.qualityScore < config.minQualityScore
         ) {
           summary.skippedLowQuality += 1;
+          report.addSkipped(url, `low quality: ${candidate.classification.title} (${candidate.classification.qualityScore})`);
           console.log(
             `Skipped low quality: ${candidate.classification.title} (${candidate.classification.qualityScore})`,
           );
@@ -202,6 +208,7 @@ async function main(): Promise<void> {
           if (finalDuplicateReason) {
             summary.skippedDuplicate += 1;
             summary.skippedExisting += 1;
+            report.addSkipped(url, `duplicate before write: ${finalDuplicateReason}`);
             console.log(`Skipped duplicate before write: ${candidate.classification.title} (${finalDuplicateReason})`);
             continue;
           }
@@ -212,21 +219,27 @@ async function main(): Promise<void> {
         }
 
         summary.created += 1;
+        report.addCreated(candidate);
       } catch (error) {
         if (error instanceof SkippedCandidateError) {
           summary.skippedInvalid += 1;
+          report.addSkipped(url, error.reason);
           console.log(error.message);
           continue;
         }
 
         summary.failed += 1;
-        console.error(`Failed ${url}:`, error instanceof Error ? error.message : error);
+        const message = error instanceof Error ? error.message : String(error);
+        report.addFailed(url, message);
+        console.error(`Failed ${url}:`, message);
       }
     }
 
     if (framer) {
       summary.published = await publishIfRequested(framer, summary.created > 0);
     }
+
+    await report.write(summary);
   } finally {
     await framer?.disconnect();
   }
