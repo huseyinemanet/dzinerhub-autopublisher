@@ -126,6 +126,54 @@ export async function getInspirationCollection(framer: Framer): Promise<{
   };
 }
 
+async function getContributorReferenceIds(framer: Framer, references: string[]): Promise<string[]> {
+  const wanted = new Set(references.map((reference) => reference.trim().toLowerCase()).filter(Boolean));
+  if (wanted.size === 0) return [];
+
+  const collections = await framer.getCollections();
+  const contributors = collections.find((candidate) => candidate.name === "Contributors");
+  if (!contributors) throw new Error('Framer collection "Contributors" was not found');
+
+  const fields = fieldMap(await contributors.getFields());
+  const handleFieldId = optionalFieldId(fields, "Handle");
+  const fullNameFieldId = optionalFieldId(fields, "Full Name");
+  const items = await contributors.getItems();
+  const ids: string[] = [];
+
+  for (const item of items) {
+    const keys = [
+      item.id,
+      item.slug,
+      handleFieldId ? entryValue(item.fieldData[handleFieldId]) : "",
+      fullNameFieldId ? entryValue(item.fieldData[fullNameFieldId]) : "",
+    ]
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (keys.some((key) => wanted.has(key))) ids.push(item.id);
+  }
+
+  const missing = [...wanted].filter((reference) => !ids.some((id) => id.toLowerCase() === reference));
+  if (ids.length === 0 || ids.length < wanted.size) {
+    const foundReferences = new Set(
+      items
+        .filter((item) => ids.includes(item.id))
+        .flatMap((item) => [
+          item.id,
+          item.slug,
+          handleFieldId ? entryValue(item.fieldData[handleFieldId]) : "",
+          fullNameFieldId ? entryValue(item.fieldData[fullNameFieldId]) : "",
+        ])
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const unresolved = missing.filter((reference) => !foundReferences.has(reference));
+    if (unresolved.length > 0) throw new Error(`Missing Contributor reference: ${unresolved.join(", ")}`);
+  }
+
+  return [...new Set(ids)];
+}
+
 export async function getExistingWebsiteIndex(collection: Collection, fields: FieldByName): Promise<WebsiteIdentityIndex> {
   const items = await collection.getItems();
   const index = createWebsiteIdentityIndex();
@@ -286,6 +334,7 @@ export async function addInspirationItem(
   fields: FieldByName,
   candidate: InspirationCandidate,
 ): Promise<void> {
+  const contributorIds = await getContributorReferenceIds(framer, candidate.contributorSlugs);
   const photo = await framer.uploadImage({
     image: {
       bytes: new Uint8Array(candidate.photo.bytes),
@@ -299,7 +348,7 @@ export async function addInspirationItem(
   const fieldData = {
     [fieldId(fields, "Title")]: textField(candidate.title),
     [fieldId(fields, "Photo")]: imageField(photo.url, candidate.title),
-    [fieldId(fields, "Contributors")]: multiCollectionReferenceField(candidate.contributorSlugs),
+    [fieldId(fields, "Contributors")]: multiCollectionReferenceField(contributorIds),
     [fieldId(fields, "Tag")]: textField(candidate.tag),
     [fieldId(fields, "AI Content")]: formattedParagraphsField(candidate.aiContent),
     [fieldId(fields, "Source")]: linkField(candidate.finalUrl),
