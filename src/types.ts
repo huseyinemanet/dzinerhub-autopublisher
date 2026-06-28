@@ -12,6 +12,8 @@ export interface WebsiteMetadata {
   canonicalUrl: string;
   faviconUrl: string;
   contentType: string;
+  statusCode: number | null;
+  browserErrors: string[];
   visualContext: {
     viewport: {
       width: number;

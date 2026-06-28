@@ -36,6 +36,13 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
     viewport,
     deviceScaleFactor: 1,
   });
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    browserErrors.push(error.message);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
 
   try {
     page.setDefaultTimeout(2500);
@@ -44,6 +51,7 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
 
     const finalUrl = page.url();
     const contentType = response?.headers()["content-type"] ?? "";
+    const statusCode = response?.status() ?? null;
     const title =
       (await getMeta(page, 'meta[property="og:site_name"]')) ||
       (await page.title()) ||
@@ -147,6 +155,8 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
       canonicalUrl,
       faviconUrl,
       contentType,
+      statusCode,
+      browserErrors: browserErrors.slice(0, 20),
       visualContext,
       screenshot,
     };

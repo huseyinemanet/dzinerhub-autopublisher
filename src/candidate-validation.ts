@@ -123,6 +123,37 @@ function isGenericTitle(value: string): boolean {
   return /^(home|index|untitled|welcome|website|landing page)$/i.test(value.trim());
 }
 
+export function capturedPageErrorReason(metadata: Pick<WebsiteMetadata, "browserErrors" | "statusCode" | "title" | "visualContext">): string | null {
+  if (metadata.statusCode && metadata.statusCode >= 400) return `http ${metadata.statusCode}`;
+
+  const visibleText = [
+    metadata.title,
+    ...metadata.visualContext.headings,
+    ...metadata.visualContext.visibleText,
+    ...metadata.browserErrors,
+  ]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  const fatalPatterns: Array<[RegExp, string]> = [
+    [/application error: a client-side exception has occurred/i, "client-side application error"],
+    [/client-side exception has occurred/i, "client-side application error"],
+    [/see the browser console for more information/i, "browser console application error"],
+    [/hydration failed|minified react error|react error boundary/i, "react runtime error"],
+    [/chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module/i, "asset loading error"],
+    [/internal server error|bad gateway|service unavailable|gateway timeout/i, "server error page"],
+    [/this site can.t be reached|err_name_not_resolved|err_connection|err_timed_out/i, "browser error page"],
+  ];
+
+  for (const [pattern, reason] of fatalPatterns) {
+    if (pattern.test(visibleText)) return reason;
+  }
+
+  return null;
+}
+
 async function isBlankScreenshot(image: Buffer): Promise<boolean> {
   const resized = await sharp(image)
     .resize(48, 48, { fit: "inside" })
@@ -160,6 +191,9 @@ export async function validateCapturedWebsite(metadata: WebsiteMetadata): Promis
   if (metadata.contentType && !/text\/html|application\/xhtml\+xml/i.test(metadata.contentType)) {
     return `non-html response (${metadata.contentType})`;
   }
+
+  const errorReason = capturedPageErrorReason(metadata);
+  if (errorReason) return errorReason;
 
   const visibleTextCount = new Set([...metadata.visualContext.headings, ...metadata.visualContext.visibleText]).size;
   if (isGenericTitle(metadata.title) && visibleTextCount < 2) return "weak page title and text";
