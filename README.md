@@ -7,7 +7,7 @@ It discovers curated website inspiration from sources like Land-book, Recent Des
 ## Features
 
 - Discovers candidate websites from curated showcase pages in `data/sources.json`
-- Captures thumbnail and full-page screenshots with Playwright
+- Captures thumbnail and full-page screenshots with ScreenshotAPI.com, with Playwright fallback
 - Extracts title, description, canonical URL, favicon, content type, and visible page context
 - Uses DeepSeek to classify categories, types, platforms, styles, typography, quality score, and publish suitability
 - Builds a visual profile from the full-page screenshot and generates an art-director style `AI Comment`
@@ -74,10 +74,12 @@ Create these repository secrets:
 - `DEEPSEEK_API_KEY`
 - `FRAMER_API_KEY`
 - `FRAMER_PROJECT_URL`
+- `SCREENSHOTAPI_API_KEY`
 
 Recommended repository variables:
 
 - `DEEPSEEK_MODEL=deepseek-v4-flash`
+- `SCREENSHOT_PROVIDER=auto`
 - `DRY_RUN=false`
 - `READ_FRAMER_IN_DRY_RUN=true`
 - `PUBLISH=true`
@@ -91,6 +93,12 @@ Recommended repository variables:
 The workflow runs every day at `08:12 Europe/Istanbul`.
 
 After each run, the workflow creates a GitHub issue titled `DzinerHub Daily Autopublish Report - YYYY-MM-DD`. The issue mentions `@huseyinemanet`, includes the number of created items, publish status, and the links for newly added websites.
+
+## Screenshot Quality
+
+`SCREENSHOT_PROVIDER=auto` uses ScreenshotAPI.com when `SCREENSHOTAPI_API_KEY` is present. If the service fails or the key is missing, the pipeline falls back to Playwright so the daily automation can continue.
+
+Use `SCREENSHOT_PROVIDER=playwright` to force local screenshots only.
 
 ## Source Configuration
 

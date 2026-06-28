@@ -1,4 +1,6 @@
 import { chromium, type Browser, type Page } from "playwright";
+import { config } from "./config.js";
+import { captureWithScreenshotApi } from "./screenshot-api.js";
 import type { WebsiteMetadata } from "./types.js";
 
 async function getMeta(page: Page, selector: string): Promise<string> {
@@ -90,20 +92,51 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
       };
     })()`)) as WebsiteMetadata["visualContext"];
 
-    const thumbnail = await page.screenshot({
-      type: "jpeg",
-      quality: 82,
-      fullPage: false,
-      animations: "disabled",
-      timeout: 15000,
-    });
-    const fullPage = await page.screenshot({
-      type: "jpeg",
-      quality: 78,
-      fullPage: true,
-      animations: "disabled",
-      timeout: 20000,
-    });
+    const playwrightScreenshot = async () => {
+      const thumbnail = await page.screenshot({
+        type: "jpeg",
+        quality: 82,
+        fullPage: false,
+        animations: "disabled",
+        timeout: 15000,
+      });
+      const fullPage = await page.screenshot({
+        type: "jpeg",
+        quality: 78,
+        fullPage: true,
+        animations: "disabled",
+        timeout: 20000,
+      });
+
+      return {
+        thumbnail,
+        fullPage,
+        mimeType: "image/jpeg" as const,
+      };
+    };
+
+    let screenshot: WebsiteMetadata["screenshot"];
+    const shouldUseScreenshotApi =
+      config.screenshotProvider !== "playwright" && config.screenshotApiKey.trim().length > 0;
+
+    if (shouldUseScreenshotApi) {
+      try {
+        screenshot = await captureWithScreenshotApi(config.screenshotApiKey, finalUrl);
+      } catch (error) {
+        console.warn(
+          `ScreenshotAPI failed for ${finalUrl}; falling back to Playwright: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        screenshot = await playwrightScreenshot();
+      }
+    } else {
+      screenshot = await playwrightScreenshot();
+    }
+
+    if (config.screenshotProvider === "screenshotapi" && !config.screenshotApiKey.trim()) {
+      console.warn("SCREENSHOT_PROVIDER=screenshotapi but SCREENSHOTAPI_API_KEY is missing; using Playwright.");
+    }
 
     return {
       url,
@@ -115,11 +148,7 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
       faviconUrl,
       contentType,
       visualContext,
-      screenshot: {
-        thumbnail,
-        fullPage,
-        mimeType: "image/jpeg",
-      },
+      screenshot,
     };
   } finally {
     await page.close();

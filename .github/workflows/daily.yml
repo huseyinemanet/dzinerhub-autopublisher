@@ -46,6 +46,8 @@ jobs:
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
           FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
           FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          SCREENSHOT_PROVIDER: ${{ vars.SCREENSHOT_PROVIDER || 'auto' }}
+          SCREENSHOTAPI_API_KEY: ${{ secrets.SCREENSHOTAPI_API_KEY }}
           DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
           READ_FRAMER_IN_DRY_RUN: ${{ vars.READ_FRAMER_IN_DRY_RUN || 'true' }}
           PUBLISH: ${{ vars.PUBLISH || 'false' }}

@@ -16,6 +16,8 @@ function numberEnv(name: string, fallback: number): number {
 export const config = {
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
   framerApiKey: process.env.FRAMER_API_KEY ?? "",
+  screenshotApiKey: process.env.SCREENSHOTAPI_API_KEY ?? "",
+  screenshotProvider: process.env.SCREENSHOT_PROVIDER ?? "auto",
   framerProjectUrl:
     process.env.FRAMER_PROJECT_URL ??
     "https://framer.com/projects/DzinerHub--H5SEd0ka5iXGdGZg4ede-302i0",
