@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pathToFileURL } from "node:url";
 import type { Browser, Page } from "playwright";
 import { config } from "./config.js";
 import {
@@ -17,14 +18,7 @@ import type { StoryCandidate, StorySyncSummary } from "./types.js";
 import { canonicalUrlKey } from "./url-identity.js";
 import { withBrowser } from "./screenshot.js";
 
-const storyClassificationSchema = z.object({
-  title: z.string().min(3).max(260),
-  description: z.string().max(220).default(""),
-  tags: z.array(z.string()).default([]),
-  aiComment: z.string().min(1).max(180),
-  qualityScore: z.number().min(0).max(1),
-  shouldPublish: z.boolean(),
-});
+const rawStoryClassificationSchema = z.object({}).catchall(z.unknown());
 
 const BLOCKED_HOSTS = new Set([
   "accounts.google.com",
@@ -92,36 +86,118 @@ function truncate(value: string, maxLength: number): string {
   return `${trimmed.slice(0, maxLength - 1).trim()}…`;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = stringValue(record[key]).trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(stringValue(value));
+  return Number.isFinite(parsed) ? clamp(parsed, 0, 1) : fallback;
+}
+
+function booleanValue(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "publish", "published"].includes(normalized)) return true;
+  if (["0", "false", "no", "skip", "unpublish"].includes(normalized)) return false;
+  return null;
+}
+
+function tagList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(stringValue).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((tag) => tag.trim()).filter(Boolean);
+  return [];
+}
+
+function ensureSentence(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+export function tinyStoryBlurb(value: string, fallback = "A short link worth a quick look."): string {
+  const withoutHype = value
+    .replace(/\b(must-read|fascinating|essential|stunning|masterfully|revealing|in-depth|deep dive)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const source = withoutHype || fallback;
+  const sentences = source.match(/[^.!?]+[.!?]?/g) ?? [source];
+  const sentence =
+    sentences
+      .map((item) => item.trim())
+      .find((item) => item.length > 0 && item.length <= 80) ?? source;
+
+  return ensureSentence(truncate(sentence, 80));
+}
+
 function compactTags(tags: string[]): string[] {
   return [...new Set(tags.map(formatTag).filter(Boolean))].slice(0, 4);
 }
 
-function parseJsonContent(content: string): unknown {
+export function parseJsonContent(content: string): unknown {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const source = fenced?.[1] ?? content;
-  return JSON.parse(source.trim());
+  const trimmed = source.trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+    if (!objectMatch) throw new Error("No JSON object found in model response");
+    return JSON.parse(objectMatch[0]);
+  }
 }
 
-function normalizeStoryClassification(value: unknown): unknown {
-  if (!value || typeof value !== "object") return value;
-  const record = value as Record<string, unknown>;
-  if (typeof record.aiComment === "string" && record.aiComment.trim()) return record;
+export function normalizeStoryClassification(
+  value: unknown,
+  fallback: {
+    title: string;
+    ogTitle: string;
+    description: string;
+    finalUrl: string;
+  },
+): Omit<StoryCandidate, "sourceUrl" | "url" | "finalUrl" | "domain" | "slug"> & { shouldPublish: boolean } {
+  const record = rawStoryClassificationSchema.parse(value);
+  const title = truncate(firstString(record, ["title", "name"]) || fallback.ogTitle || fallback.title || host(fallback.finalUrl), 140);
+  const description = truncate(firstString(record, ["description", "summary"]) || fallback.description, 90);
+  const blurbSource =
+    firstString(record, ["aiComment", "blurb", "comment", "note"]) ||
+    description ||
+    title ||
+    "A short link worth a quick look.";
+  const qualityScore = numberValue(record.qualityScore ?? record.score, 0);
+  const shouldPublish = booleanValue(record.shouldPublish ?? record.publish) ?? Boolean(title && qualityScore >= config.minQualityScore);
 
-  for (const key of ["blurb", "comment", "summary", "note", "description"]) {
-    const fallback = record[key];
-    if (typeof fallback === "string" && fallback.trim()) {
-      return { ...record, aiComment: fallback };
-    }
-  }
-
-  return { ...record, aiComment: "A short link worth a quick look." };
+  return {
+    title,
+    description,
+    tags: compactTags(tagList(record.tags)),
+    aiComment: tinyStoryBlurb(blurbSource),
+    qualityScore,
+    shouldPublish,
+  };
 }
 
 function isAssetUrl(url: URL): boolean {
   return /\.(avif|css|gif|ico|jpeg|jpg|js|json|mp4|pdf|png|svg|webm|webp|xml)$/i.test(url.pathname);
 }
 
-function isUsefulStoryUrl(rawUrl: string, sourceUrl: string): boolean {
+export function isUsefulStoryUrl(rawUrl: string, sourceUrl = "", options: { rejectSame?: boolean } = {}): boolean {
   if (/^(mailto|tel|javascript):/i.test(rawUrl)) return false;
   let url: URL;
   try {
@@ -133,11 +209,11 @@ function isUsefulStoryUrl(rawUrl: string, sourceUrl: string): boolean {
   if (!["http:", "https:"].includes(url.protocol)) return false;
   if (isAssetUrl(url)) return false;
   if (/challenge|security-checkpoint/i.test(`${url.pathname} ${url.search}`)) return false;
-  if (canonicalUrlKey(url.toString()) === canonicalUrlKey(sourceUrl)) return false;
+  if (options.rejectSame !== false && canonicalUrlKey(url.toString()) === canonicalUrlKey(sourceUrl)) return false;
 
   const normalizedHost = host(url.toString());
   if (!normalizedHost || BLOCKED_HOSTS.has(normalizedHost)) return false;
-  if (SAME_HOST_NAV_ONLY_SOURCES.has(host(sourceUrl)) && normalizedHost === host(sourceUrl)) return false;
+  if (sourceUrl && SAME_HOST_NAV_ONLY_SOURCES.has(host(sourceUrl)) && normalizedHost === host(sourceUrl)) return false;
 
   const path = url.pathname.toLowerCase();
   if (BLOCKED_PATH_PARTS.some((part) => path.includes(part))) return false;
@@ -354,17 +430,22 @@ async function classifyStory(args: {
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("DeepSeek returned an empty story response");
 
-  const parsed = storyClassificationSchema.parse(normalizeStoryClassification(parseJsonContent(content)));
+  const parsed = normalizeStoryClassification(parseJsonContent(content), {
+    title: args.title,
+    ogTitle: args.ogTitle,
+    description: args.description,
+    finalUrl: args.finalUrl,
+  });
 
   return {
     sourceUrl: args.sourceUrl,
     url: args.finalUrl,
     finalUrl: args.finalUrl,
-    title: truncate(parsed.title, 140),
-    description: truncate(parsed.description, 90),
+    title: parsed.title,
+    description: parsed.description,
     domain: host(args.finalUrl),
     tags: compactTags(parsed.tags),
-    aiComment: truncate(parsed.aiComment, 80),
+    aiComment: parsed.aiComment,
     qualityScore: parsed.qualityScore,
     shouldPublish: parsed.shouldPublish,
   };
@@ -415,7 +496,16 @@ async function main(): Promise<void> {
         break;
       }
 
-      const url = normalizeUrl(rawUrl);
+      let url = "";
+      try {
+        url = normalizeUrl(rawUrl);
+      } catch {
+        summary.skippedInvalid += 1;
+        report.addSkipped(rawUrl, "invalid URL");
+        console.log(`Skipped invalid story URL: ${rawUrl}`);
+        continue;
+      }
+
       const key = canonicalUrlKey(url);
       if (!key || runUrlKeys.has(key)) continue;
       runUrlKeys.add(key);
@@ -432,13 +522,28 @@ async function main(): Promise<void> {
         }
 
           const metadata = await readStoryMetadata(browser, url);
+          if (!isUsefulStoryUrl(metadata.finalUrl, "", { rejectSame: false })) {
+            summary.skippedInvalid += 1;
+            report.addSkipped(url, "invalid final URL");
+            console.log(`Skipped invalid story final URL: ${metadata.finalUrl}`);
+            continue;
+          }
+
           const finalKey = canonicalUrlKey(metadata.finalUrl);
+          if (finalKey && runUrlKeys.has(finalKey) && finalKey !== key) {
+            summary.skippedDuplicate += 1;
+            report.addSkipped(url, "duplicate final URL in this run");
+            console.log(`Skipped duplicate story final URL in this run: ${metadata.finalUrl}`);
+            continue;
+          }
+
           if (finalKey && existingUrlKeys.has(finalKey)) {
             summary.skippedDuplicate += 1;
             report.addSkipped(url, "duplicate final URL");
             console.log(`Skipped duplicate story final URL: ${metadata.finalUrl}`);
             continue;
           }
+          if (finalKey) runUrlKeys.add(finalKey);
 
           const invalidReason = invalidStoryReason(metadata);
           if (invalidReason) {
@@ -521,7 +626,9 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
