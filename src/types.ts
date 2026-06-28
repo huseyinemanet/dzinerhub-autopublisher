@@ -99,3 +99,46 @@ export interface DailyReport {
   skipped: SkippedWebsiteReportItem[];
   failed: FailedWebsiteReportItem[];
 }
+
+export interface StoryCandidate {
+  sourceUrl: string;
+  url: string;
+  finalUrl: string;
+  title: string;
+  description: string;
+  domain: string;
+  tags: string[];
+  aiComment: string;
+  qualityScore: number;
+  slug: string;
+}
+
+export interface StorySyncSummary {
+  discovered: number;
+  scanned: number;
+  skippedDuplicate: number;
+  skippedInvalid: number;
+  skippedLowQuality: number;
+  failed: number;
+  created: number;
+  dryRun: boolean;
+  published: boolean;
+}
+
+export interface CreatedStoryReportItem {
+  title: string;
+  slug: string;
+  url: string;
+  dzinerHubLink: string;
+}
+
+export interface StoryReport {
+  reportDate: string;
+  generatedAt: string;
+  dryRun: boolean;
+  published: boolean;
+  summary: StorySyncSummary;
+  created: CreatedStoryReportItem[];
+  skipped: SkippedWebsiteReportItem[];
+  failed: FailedWebsiteReportItem[];
+}

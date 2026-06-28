@@ -88,6 +88,24 @@ jobs:
           REF_PARAM: dzinerhub.com
         run: npm start
 
+      - name: Run stories autopublisher
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish' }}
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          PUBLISH: ${{ vars.PUBLISH || 'true' }}
+          DRAFT_ITEMS: ${{ vars.DRAFT_ITEMS || 'false' }}
+          MAX_STORIES: ${{ vars.MAX_STORIES || '10' }}
+          MAX_STORY_DISCOVERY_PAGES: ${{ vars.MAX_STORY_DISCOVERY_PAGES || '32' }}
+          MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          STORY_SOURCE_FILE: data/story-sources.json
+          STORY_REPORT_FILE: story-report.json
+        run: npm run stories
+
       - name: Refresh draft screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'refresh-draft-screenshots' }}
         env:
@@ -113,30 +131,40 @@ jobs:
             }
 
             const report = JSON.parse(fs.readFileSync(path, "utf8"));
+            const storyReport = fs.existsSync("story-report.json")
+              ? JSON.parse(fs.readFileSync("story-report.json", "utf8"))
+              : null;
             const summary = report.summary ?? {};
+            const storySummary = storyReport?.summary ?? {};
             const created = report.created ?? [];
-            const skipped = report.skipped ?? [];
+            const createdStories = storyReport?.created ?? [];
             const failed = report.failed ?? [];
+            const storyFailed = storyReport?.failed ?? [];
             const addedCount = summary.created ?? created.length;
-            const failedCount = summary.failed ?? failed.length;
+            const storyAddedCount = storySummary.created ?? createdStories.length;
+            const failedCount = (summary.failed ?? failed.length) + (storySummary.failed ?? storyFailed.length);
             const invalidCount = summary.skippedInvalid ?? 0;
-            const lowQualityCount = summary.skippedLowQuality ?? 0;
+            const storyInvalidCount = storySummary.skippedInvalid ?? 0;
+            const lowQualityCount = (summary.skippedLowQuality ?? 0) + (storySummary.skippedLowQuality ?? 0);
             const title = `DzinerHub Günlük Rapor - ${report.reportDate}`;
 
             const createdLines = created.length
               ? created.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink})`).join("\n")
               : "Bugün yeni site eklenmedi.";
+            const createdStoryLines = createdStories.length
+              ? createdStories.map((item, index) => `${index + 1}. [${item.title}](${item.dzinerHubLink})`).join("\n")
+              : "Bugün yeni link eklenmedi.";
             const statusLine = failedCount > 0
               ? `${failedCount} adayda hata oluştu. Kontrol etmek iyi olur.`
               : "Sorun yok. Site publish edildi.";
-            const skippedLine = invalidCount || lowQualityCount
-              ? `Not: ${invalidCount} erişilemeyen/geçersiz aday, ${lowQualityCount} düşük kalite aday elendi.`
+            const skippedLine = invalidCount || storyInvalidCount || lowQualityCount
+              ? `Not: ${invalidCount + storyInvalidCount} erişilemeyen/geçersiz aday, ${lowQualityCount} düşük kalite aday elendi.`
               : "";
 
             const body = [
               "@huseyinemanet",
               "",
-              `Bugün ${addedCount} site eklendi.`,
+              `Bugün ${addedCount} site ve ${storyAddedCount} link eklendi.`,
               "",
               statusLine,
               skippedLine,
@@ -144,6 +172,10 @@ jobs:
               "Eklenen siteler:",
               "",
               createdLines,
+              "",
+              "Eklenen linkler:",
+              "",
+              createdStoryLines,
             ].filter(Boolean).join("\n");
 
             await github.rest.issues.create({

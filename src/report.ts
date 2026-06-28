@@ -1,6 +1,15 @@
 import { writeFile } from "fs/promises";
 import { config } from "./config.js";
-import type { CandidateResult, DailyReport, FailedWebsiteReportItem, SkippedWebsiteReportItem, SyncSummary } from "./types.js";
+import type {
+  CandidateResult,
+  DailyReport,
+  FailedWebsiteReportItem,
+  SkippedWebsiteReportItem,
+  StoryCandidate,
+  StoryReport,
+  StorySyncSummary,
+  SyncSummary,
+} from "./types.js";
 
 function reportDate(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -13,6 +22,10 @@ function reportDate(): string {
 
 function dzinerHubLink(slug: string): string {
   return `${config.siteBaseUrl.replace(/\/+$/, "")}/websites/${slug}`;
+}
+
+function dzinerHubStoryLink(slug: string): string {
+  return `${config.siteBaseUrl.replace(/\/+$/, "")}/stories/${slug}`;
 }
 
 export class ReportBuilder {
@@ -51,6 +64,45 @@ export class ReportBuilder {
     };
 
     await writeFile(config.reportFile, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    return report;
+  }
+}
+
+export class StoryReportBuilder {
+  readonly created: StoryReport["created"] = [];
+  readonly skipped: SkippedWebsiteReportItem[] = [];
+  readonly failed: FailedWebsiteReportItem[] = [];
+
+  addCreated(candidate: StoryCandidate): void {
+    this.created.push({
+      title: candidate.title,
+      slug: candidate.slug,
+      url: candidate.url,
+      dzinerHubLink: dzinerHubStoryLink(candidate.slug),
+    });
+  }
+
+  addSkipped(url: string, reason: string): void {
+    this.skipped.push({ url, reason });
+  }
+
+  addFailed(url: string, error: string): void {
+    this.failed.push({ url, error });
+  }
+
+  async write(summary: StorySyncSummary): Promise<StoryReport> {
+    const report: StoryReport = {
+      reportDate: reportDate(),
+      generatedAt: new Date().toISOString(),
+      dryRun: summary.dryRun,
+      published: summary.published,
+      summary,
+      created: this.created,
+      skipped: this.skipped,
+      failed: this.failed,
+    };
+
+    await writeFile(process.env.STORY_REPORT_FILE ?? "story-report.json", `${JSON.stringify(report, null, 2)}\n`, "utf8");
     return report;
   }
 }

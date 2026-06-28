@@ -2,7 +2,7 @@
 
 Automated daily content pipeline for the DzinerHub Framer CMS `Websites` collection.
 
-It discovers curated website inspiration from sources like Land-book, Recent Design, Craftwork, Landingfolio, SiteInspire, Lapa Ninja, One Page Love, and similar galleries; captures screenshots; asks DeepSeek for metadata and art-direction commentary; then creates Framer CMS items.
+It discovers curated website inspiration from sources like Land-book, Recent Design, Craftwork, Landingfolio, SiteInspire, Lapa Ninja, One Page Love, and similar galleries; captures screenshots; asks DeepSeek for metadata and art-direction commentary; then creates Framer CMS items. It also curates daily links for the Framer CMS `Stories` collection from design, AI, product, frontend, and startup sources.
 
 ## Features
 
@@ -16,6 +16,7 @@ It discovers curated website inspiration from sources like Land-book, Recent Des
 - Writes accepted items into the Framer `Websites` CMS collection
 - Supports draft-only review mode and optional Framer publishing
 - Runs daily through GitHub Actions
+- Curates daily `Stories` links from sources like TLDR, Product Hunt, Hacker News, Techmeme, Sidebar, HeyDesigner, Muzli, Indie Hackers, and AI newsletters
 
 ## GitHub Action Defaults
 
@@ -67,6 +68,12 @@ Run a real sync with publish enabled:
 DRY_RUN=false PUBLISH=true DRAFT_ITEMS=false npm start
 ```
 
+Run the Stories importer:
+
+```bash
+DRY_RUN=false PUBLISH=true DRAFT_ITEMS=false npm run stories
+```
+
 ## GitHub Actions Setup
 
 Create these repository secrets:
@@ -86,7 +93,9 @@ Recommended repository variables:
 - `DRAFT_ITEMS=false`
 - `MAX_URLS=10`
 - `MAX_CREATED=0` (`0` means no cap; useful manual runs can set this to `5`, `10`, etc.)
+- `MAX_STORIES=10`
 - `MAX_DISCOVERY_PAGES=32`
+- `MAX_STORY_DISCOVERY_PAGES=32`
 - `MAX_DETAIL_PAGES_PER_SOURCE=16`
 - `MIN_QUALITY_SCORE=0.68`
 - `SITE_BASE_URL=https://dzinerhub.framer.website`

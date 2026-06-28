@@ -6,6 +6,7 @@
   "scripts": {
     "check": "tsc --noEmit",
     "start": "tsx src/index.ts",
+    "stories": "tsx src/stories.ts",
     "dry": "DRY_RUN=true tsx src/index.ts",
     "refresh:draft-screenshots": "tsx src/refresh-draft-screenshots.ts",
     "refresh:ai-comments": "tsx src/refresh-ai-comments.ts",

@@ -1,7 +1,8 @@
 import { connect, type Collection, type Field, type Framer } from "framer-api";
 import { config } from "./config.js";
 import { addExistingIdentity, createWebsiteIdentityIndex, type WebsiteIdentityIndex } from "./dedupe.js";
-import type { CandidateResult } from "./types.js";
+import type { CandidateResult, StoryCandidate } from "./types.js";
+import { canonicalUrlKey } from "./url-identity.js";
 
 type FieldByName = Map<string, Field>;
 
@@ -88,6 +89,19 @@ export async function getWebsitesCollection(framer: Framer): Promise<{
   };
 }
 
+export async function getStoriesCollection(framer: Framer): Promise<{
+  collection: Collection;
+  fields: FieldByName;
+}> {
+  const collections = await framer.getCollections();
+  const collection = collections.find((candidate) => candidate.name === "Stories");
+  if (!collection) throw new Error('Framer collection "Stories" was not found');
+  return {
+    collection,
+    fields: fieldMap(await collection.getFields()),
+  };
+}
+
 export async function getExistingWebsiteIndex(collection: Collection, fields: FieldByName): Promise<WebsiteIdentityIndex> {
   const items = await collection.getItems();
   const index = createWebsiteIdentityIndex();
@@ -151,6 +165,66 @@ export async function addWebsiteItem(
 
   setOptional(fieldData, fields, "id", textField(candidate.slug));
   setOptional(fieldData, fields, "AI Comment", textField(candidate.aiComment));
+
+  await collection.addItems([
+    {
+      slug: candidate.slug,
+      draft: config.draftItems,
+      fieldData,
+    },
+  ]);
+}
+
+export async function getExistingStoryUrlKeys(collection: Collection, fields: FieldByName): Promise<Set<string>> {
+  const items = await collection.getItems();
+  const urlFieldId = optionalFieldId(fields, "URL");
+  const keys = new Set<string>();
+
+  if (!urlFieldId) return keys;
+
+  for (const item of items) {
+    const url = entryValue(item.fieldData[urlFieldId]);
+    const key = canonicalUrlKey(url);
+    if (key) keys.add(key);
+  }
+
+  return keys;
+}
+
+export function uniqueStorySlug(existingSlugs: Set<string>, slug: string): string {
+  let candidate = slug || "story";
+  let suffix = 2;
+
+  while (existingSlugs.has(candidate)) {
+    candidate = `${slug || "story"}-${suffix}`;
+    suffix += 1;
+  }
+
+  existingSlugs.add(candidate);
+  return candidate;
+}
+
+export async function getExistingStorySlugs(collection: Collection): Promise<Set<string>> {
+  const items = await collection.getItems();
+  return new Set(items.map((item) => item.slug));
+}
+
+export async function addStoryItem(
+  collection: Collection,
+  fields: FieldByName,
+  candidate: StoryCandidate,
+): Promise<void> {
+  const contentFieldId = optionalFieldId(fields, "Content");
+  const fieldData = {
+    [fieldId(fields, "Title")]: textField(candidate.title),
+    [fieldId(fields, "Created time")]: dateField(new Date().toISOString()),
+    [fieldId(fields, "Description")]: textField(candidate.description),
+    [fieldId(fields, "URL")]: linkField(candidate.url),
+    [fieldId(fields, "Tags")]: textField(candidate.tags.join(", ")),
+    [fieldId(fields, "AI Comment")]: textField(candidate.aiComment),
+    [fieldId(fields, "Domain")]: textField(candidate.domain),
+    ...(contentFieldId ? { [contentFieldId]: formattedTextField("") } : {}),
+  };
 
   await collection.addItems([
     {
