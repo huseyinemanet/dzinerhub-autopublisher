@@ -8,8 +8,10 @@
     "start": "tsx src/index.ts",
     "stories": "tsx src/stories.ts",
     "inspiration": "tsx src/inspiration.ts",
+    "publish": "tsx src/publish.ts",
     "dry": "DRY_RUN=true tsx src/index.ts",
     "refresh:draft-screenshots": "tsx src/refresh-draft-screenshots.ts",
+    "refresh:website-screenshots": "tsx src/refresh-website-screenshots.ts",
     "refresh:ai-comments": "tsx src/refresh-ai-comments.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "install:browsers": "playwright install chromium"

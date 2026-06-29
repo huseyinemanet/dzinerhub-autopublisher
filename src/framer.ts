@@ -80,6 +80,10 @@ function entryValue(entry: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function connectFramer(): Promise<Framer> {
   if (!config.framerApiKey) {
     throw new Error("FRAMER_API_KEY is required when DRY_RUN=false");
@@ -366,20 +370,38 @@ export async function addInspirationItem(
   ]);
 }
 
-export async function publishIfRequested(framer: Framer, hasNewItems: boolean): Promise<boolean> {
+export async function publishIfRequested(
+  framer: Framer,
+  hasNewItems: boolean,
+  options: { throwOnFailure?: boolean } = {},
+): Promise<boolean> {
   if (!config.publish || !hasNewItems) return false;
 
-  const preview = (await framer.agent.publish({ action: "preview" })) as {
-    confirmationHash?: string;
-  };
-  if (!preview.confirmationHash) {
-    throw new Error("Framer publish preview did not return a confirmation hash");
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const preview = (await framer.agent.publish({ action: "preview" })) as {
+        confirmationHash?: string;
+      };
+      if (!preview.confirmationHash) {
+        throw new Error("Framer publish preview did not return a confirmation hash");
+      }
+
+      await framer.agent.publish({
+        action: "confirm_publish",
+        confirmationHash: preview.confirmationHash,
+      });
+
+      return true;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Framer publish attempt ${attempt}/3 failed: ${message}`);
+      if (attempt < 3) await sleep(5000 * attempt);
+    }
   }
 
-  await framer.agent.publish({
-    action: "confirm_publish",
-    confirmationHash: preview.confirmationHash,
-  });
-
-  return true;
+  if (options.throwOnFailure === false) return false;
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }

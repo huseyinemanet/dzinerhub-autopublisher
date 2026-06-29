@@ -135,6 +135,14 @@ jobs:
           REFRESH_SCREENSHOT_FIELDS: full-image
         run: npm run refresh:draft-screenshots
 
+      - name: Publish site safety net
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish') }}
+        env:
+          FRAMER_API_KEY: ${{ secrets.FRAMER_API_KEY }}
+          FRAMER_PROJECT_URL: ${{ secrets.FRAMER_PROJECT_URL }}
+          PUBLISH: "true"
+        run: npm run publish
+
       - name: Create daily report issue
         if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.mode == 'autopublish') }}
         uses: actions/github-script@v7

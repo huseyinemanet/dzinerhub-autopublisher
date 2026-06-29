@@ -1,7 +1,7 @@
 import { chromium, type Browser, type Page } from "playwright";
 import { capturedPageErrorReason } from "./candidate-validation.js";
 import { config } from "./config.js";
-import { captureWithScreenshotApi } from "./screenshot-api.js";
+import { captureWithScreenshotApi, normalizeFullImage, normalizeThumbnail } from "./screenshot-api.js";
 import type { WebsiteMetadata } from "./types.js";
 
 async function getMeta(page: Page, selector: string): Promise<string> {
@@ -187,24 +187,31 @@ export async function captureWebsite(browser: Browser, url: string): Promise<Web
     });
 
     const playwrightScreenshot = async () => {
-      const thumbnail = await page.screenshot({
+      const originalViewport = page.viewportSize() ?? viewport;
+      await page.setViewportSize({ width: 1280, height: 1920 });
+      await page.waitForTimeout(500);
+      const rawThumbnail = await page.screenshot({
         type: "jpeg",
         quality: 82,
         fullPage: false,
         animations: "disabled",
         timeout: 15000,
       });
-      const fullPage = await page.screenshot({
+
+      await page.setViewportSize({ width: 1440, height: 1600 });
+      await page.waitForTimeout(500);
+      const rawFullPage = await page.screenshot({
         type: "jpeg",
         quality: 78,
         fullPage: true,
         animations: "disabled",
         timeout: 20000,
       });
+      await page.setViewportSize(originalViewport).catch(() => undefined);
 
       return {
-        thumbnail,
-        fullPage,
+        thumbnail: await normalizeThumbnail(rawThumbnail),
+        fullPage: await normalizeFullImage(rawFullPage),
         mimeType: "image/jpeg" as const,
       };
     };

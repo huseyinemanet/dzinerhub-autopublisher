@@ -241,7 +241,11 @@ async function main(): Promise<void> {
     }
 
     if (framer) {
-      summary.published = await publishIfRequested(framer, summary.created > 0);
+      summary.published = await publishIfRequested(framer, summary.created > 0, { throwOnFailure: false });
+      if (config.publish && summary.created > 0 && !summary.published) {
+        summary.failed += 1;
+        report.addFailed("__publish__", "Framer publish failed after retries; final workflow publish step will retry.");
+      }
     }
 
     await report.write(summary);

@@ -60,6 +60,10 @@ async function main(): Promise<void> {
     process.env.REFRESH_SCREENSHOT_FIELDS === "all" || process.env.REFRESH_SCREENSHOT_FIELDS === "full-image"
       ? process.env.REFRESH_SCREENSHOT_FIELDS
       : "thumbnail";
+  const refreshScope =
+    process.env.REFRESH_SCREENSHOT_SCOPE === "all" || process.env.REFRESH_SCREENSHOT_SCOPE === "live"
+      ? process.env.REFRESH_SCREENSHOT_SCOPE
+      : "draft";
 
   const framer = await connectFramer();
   let updated = 0;
@@ -74,15 +78,17 @@ async function main(): Promise<void> {
     const thumbnailFieldId = fieldId(fields, "Thumbnail");
     const fullImageFieldId = fieldId(fields, "Full Image");
 
-    const draftItems = items.filter((item) => item.draft);
-    console.log(`Found ${draftItems.length} draft website item(s).`);
+    const targetItems = items.filter((item) =>
+      refreshScope === "all" ? true : refreshScope === "live" ? !item.draft : item.draft,
+    );
+    console.log(`Found ${targetItems.length} ${refreshScope} website item(s).`);
     console.log(
       `Refreshing ${
         refreshFields === "all" ? "thumbnail and full image" : refreshFields === "full-image" ? "full image only" : "thumbnail only"
       }.`,
     );
 
-    for (const item of draftItems) {
+    for (const item of targetItems) {
       if (limit && updated >= limit) break;
       if (onlySlugs.size > 0 && !onlySlugs.has(item.slug)) {
         skipped += 1;

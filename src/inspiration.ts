@@ -720,7 +720,11 @@ async function main(): Promise<void> {
   if (summary.created > 0) {
     const publishFramer = await connectFramer();
     try {
-      summary.published = await publishIfRequested(publishFramer, true);
+      summary.published = await publishIfRequested(publishFramer, true, { throwOnFailure: false });
+      if (config.publish && !summary.published) {
+        summary.failed += 1;
+        report.addFailed("__publish__", "Framer publish failed after retries; final workflow publish step will retry.");
+      }
     } finally {
       await publishFramer.disconnect();
     }
