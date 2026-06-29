@@ -9,7 +9,7 @@ It discovers curated website inspiration from sources like Land-book, Recent Des
 - Discovers candidate websites from curated showcase pages in `data/sources.json`
 - Captures thumbnail and full-page screenshots with ScreenshotAPI.com, with Playwright fallback
 - Extracts title, description, canonical URL, favicon, content type, and visible page context
-- Uses DeepSeek to classify categories, types, platforms, styles, typography, quality score, and publish suitability
+- Uses DeepSeek to classify fixed website page-type categories, types, platforms, styles, typography, quality score, and publish suitability
 - Builds a visual profile from the full-page screenshot and generates an art-director style `AI Comment`
 - Skips exact-page duplicates using normalized URL identity
 - Filters curator subdomains, asset/CDN URLs, Product Hunt links, utility pages, non-HTML pages, weak pages, and blank screenshots
@@ -126,6 +126,18 @@ Edit `data/sources.json` to control discovery sources.
 
 - `discoveryPages` contains curator/gallery pages to crawl.
 - `urls` is optional and only for one-off manual candidates.
+
+## Website Categories
+
+`Websites > Categories` is a multi-reference field connected to the `Categories` CMS collection. The automation only writes these fixed page-type categories:
+
+`Landing Page`, `Portfolio`, `Blog`, `E-commerce`, `Product Page`, `Product Listing`, `Pricing Page`, `About Us`, `Career`, `Sign Up`, `Made in Framer`, `Other`.
+
+Run the relation migration/report script with:
+
+```bash
+DRY_RUN=true npm run migrate:website-categories
+```
 
 ## Duplicate Policy
 

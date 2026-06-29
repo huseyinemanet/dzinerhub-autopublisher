@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "./config.js";
 import { domainFromUrl } from "./slug.js";
 import type { WebsiteClassification, WebsiteMetadata } from "./types.js";
+import { normalizeWebsiteCategories, WEBSITE_CATEGORY_TITLES } from "./website-categories.js";
 
 const classificationSchema = z.object({
   title: z.string().min(1),
@@ -89,7 +90,7 @@ export async function classifyWebsite(metadata: WebsiteMetadata): Promise<Websit
               title: "short site or product name",
               longTitle: "descriptive full title",
               comment: "one concise editorial sentence",
-              categories: ["web design", "branding", "typography"],
+              categories: WEBSITE_CATEGORY_TITLES,
               types: ["saas", "portfolio", "ecommerce", "agency", "landing page"],
               platforms: ["framer", "webflow", "shopify", "unknown"],
               styles: ["minimal", "dark", "colorful", "editorial", "3d"],
@@ -115,11 +116,22 @@ export async function classifyWebsite(metadata: WebsiteMetadata): Promise<Websit
   if (!content) throw new Error("DeepSeek returned an empty response");
 
   const parsed = classificationSchema.parse(parseJsonContent(content));
+  const types = compactTags(parsed.types);
+  const platforms = compactTags(parsed.platforms);
+  const categories = normalizeWebsiteCategories(parsed.categories, {
+    title: parsed.title,
+    longTitle: parsed.longTitle,
+    url: metadata.finalUrl,
+    types,
+    platforms,
+    comment: parsed.comment,
+  });
+
   return {
     ...parsed,
-    categories: compactTags(parsed.categories),
-    types: compactTags(parsed.types),
-    platforms: compactTags(parsed.platforms),
+    categories,
+    types,
+    platforms,
     styles: compactTags(parsed.styles),
     typographies: compactTags(parsed.typographies),
   };

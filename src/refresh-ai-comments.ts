@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import { createAiComment } from "./ai-comment.js";
 import { connectFramer, getWebsitesCollection } from "./framer.js";
 import type { WebsiteClassification, WebsiteMetadata } from "./types.js";
+import type { Framer } from "framer-api";
 
 function optionalNumberEnv(name: string, fallback: number | null = null): number | null {
   const value = process.env[name];
@@ -49,6 +50,36 @@ function splitTags(value: string): string[] {
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+function referenceIds(entry: unknown): string[] {
+  if (!entry || typeof entry !== "object") return [];
+  const value = (entry as { value?: unknown }).value;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+async function getCategoryTitleById(framer: Framer): Promise<Map<string, string>> {
+  const collections = await framer.getCollections();
+  const categories = collections.find((collection) => collection.name === "Categories");
+  if (!categories) return new Map();
+
+  const fields = new Map((await categories.getFields()).map((field) => [field.name.toLowerCase(), field]));
+  const titleFieldId = optionalFieldId(fields, "Title") ?? optionalFieldId(fields, "Name");
+  const items = await categories.getItems();
+  return new Map(
+    items.map((item) => [
+      item.id,
+      (titleFieldId ? entryValue(item.fieldData[titleFieldId]) : "") || item.slug,
+    ]),
+  );
+}
+
+function categoryTags(entry: unknown, titleById: Map<string, string>): string[] {
+  const ids = referenceIds(entry);
+  if (ids.length > 0) {
+    return ids.map((id) => titleById.get(id)).filter((title): title is string => Boolean(title));
+  }
+  return splitTags(entryValue(entry));
 }
 
 function normalizeUrl(value: string): string {
@@ -137,6 +168,7 @@ async function main(): Promise<void> {
   try {
     const { collection, fields } = await getWebsitesCollection(framer);
     const items = await collection.getItems();
+    const categoryTitleById = await getCategoryTitleById(framer);
 
     const titleFieldId = fieldId(fields, "Title");
     const longTitleFieldId = optionalFieldId(fields, "Long Title");
@@ -184,7 +216,7 @@ async function main(): Promise<void> {
           title,
           longTitle: longTitle || title,
           comment,
-          categories: splitTags(entryValue(item.fieldData[categoriesFieldId])),
+          categories: categoryTags(item.fieldData[categoriesFieldId], categoryTitleById),
           types: splitTags(entryValue(item.fieldData[typesFieldId])),
           platforms: splitTags(entryValue(item.fieldData[platformsFieldId])),
           styles: splitTags(entryValue(item.fieldData[stylesFieldId])),

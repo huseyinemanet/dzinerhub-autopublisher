@@ -9,6 +9,7 @@
     "stories": "tsx src/stories.ts",
     "inspiration": "tsx src/inspiration.ts",
     "publish": "tsx src/publish.ts",
+    "migrate:website-categories": "tsx src/migrate-website-categories.ts",
     "dry": "DRY_RUN=true tsx src/index.ts",
     "refresh:draft-screenshots": "tsx src/refresh-draft-screenshots.ts",
     "refresh:website-screenshots": "tsx src/refresh-website-screenshots.ts",

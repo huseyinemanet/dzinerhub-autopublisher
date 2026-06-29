@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import { addExistingIdentity, createWebsiteIdentityIndex, type WebsiteIdentityIndex } from "./dedupe.js";
 import type { CandidateResult, InspirationCandidate, StoryCandidate } from "./types.js";
 import { canonicalUrlKey } from "./url-identity.js";
+import { normalizeWebsiteCategories } from "./website-categories.js";
 
 type FieldByName = Map<string, Field>;
 
@@ -52,7 +53,7 @@ function multiCollectionReferenceField(value: string[]) {
 }
 
 function setOptional(
-  fieldData: Record<string, ReturnType<typeof textField | typeof linkField | typeof dateField | typeof imageField | typeof formattedTextField>>,
+  fieldData: Record<string, unknown>,
   fields: FieldByName,
   name: string,
   value:
@@ -178,6 +179,83 @@ async function getContributorReferenceIds(framer: Framer, references: string[]):
   return [...new Set(ids)];
 }
 
+async function getWebsiteCategoryReferenceIds(framer: Framer, categories: string[]): Promise<string[]> {
+  const wanted = new Set(categories.map((category) => category.trim().toLowerCase()).filter(Boolean));
+  if (wanted.size === 0) return [];
+
+  const collections = await framer.getCollections();
+  const categoriesCollection = collections.find((candidate) => candidate.name === "Categories");
+  if (!categoriesCollection) throw new Error('Framer collection "Categories" was not found');
+
+  const fields = fieldMap(await categoriesCollection.getFields());
+  const titleFieldId = optionalFieldId(fields, "Title") ?? optionalFieldId(fields, "Name");
+  const items = await categoriesCollection.getItems();
+  const ids: string[] = [];
+
+  for (const item of items) {
+    const keys = [item.slug, titleFieldId ? entryValue(item.fieldData[titleFieldId]) : ""]
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (keys.some((key) => wanted.has(key))) ids.push(item.id);
+  }
+
+  if (ids.length < wanted.size) {
+    const found = new Set(
+      items
+        .filter((item) => ids.includes(item.id))
+        .flatMap((item) => [item.slug, titleFieldId ? entryValue(item.fieldData[titleFieldId]) : ""])
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const missing = [...wanted].filter((category) => !found.has(category));
+    if (missing.length > 0) throw new Error(`Missing Website category reference: ${missing.join(", ")}`);
+  }
+
+  return [...new Set(ids)];
+}
+
+async function websiteCategoryFieldData(
+  framer: Framer,
+  fields: FieldByName,
+  candidate: CandidateResult,
+): Promise<Array<{ id: string; value: ReturnType<typeof textField> | ReturnType<typeof multiCollectionReferenceField> }>> {
+  const categoriesField = fields.get("categories");
+  const categoriesRefField = fields.get("categories ref");
+  const relationField =
+    (categoriesField as { type?: string } | undefined)?.type === "multiCollectionReference"
+      ? categoriesField
+      : (categoriesRefField as { type?: string } | undefined)?.type === "multiCollectionReference"
+        ? categoriesRefField
+        : undefined;
+  const legacyTextField =
+    (categoriesField as { type?: string } | undefined)?.type !== "multiCollectionReference" ? categoriesField : undefined;
+
+  if (!relationField && !legacyTextField) throw new Error("Missing Framer field: Categories");
+
+  const categories = normalizeWebsiteCategories(candidate.classification.categories, {
+    title: candidate.classification.title,
+    longTitle: candidate.classification.longTitle,
+    url: candidate.externalLink,
+    types: candidate.classification.types,
+    platforms: candidate.classification.platforms,
+    comment: candidate.classification.comment,
+  });
+
+  const entries: Array<{ id: string; value: ReturnType<typeof textField> | ReturnType<typeof multiCollectionReferenceField> }> = [];
+
+  if (relationField) {
+    entries.push({
+      id: relationField.id,
+      value: multiCollectionReferenceField(await getWebsiteCategoryReferenceIds(framer, categories)),
+    });
+  }
+
+  if (legacyTextField) entries.push({ id: legacyTextField.id, value: textField(categories.join(", ")) });
+
+  return entries;
+}
+
 export async function getExistingWebsiteIndex(collection: Collection, fields: FieldByName): Promise<WebsiteIdentityIndex> {
   const items = await collection.getItems();
   const index = createWebsiteIdentityIndex();
@@ -206,6 +284,8 @@ export async function addWebsiteItem(
   fields: FieldByName,
   candidate: CandidateResult,
 ): Promise<void> {
+  const categoryFields = await websiteCategoryFieldData(framer, fields, candidate);
+
   const thumbnail = await framer.uploadImage({
     image: {
       bytes: new Uint8Array(candidate.metadata.screenshot.thumbnail),
@@ -224,12 +304,11 @@ export async function addWebsiteItem(
     altText: `${candidate.classification.title} full page website screenshot`,
   });
 
-  const fieldData = {
+  const fieldData: Record<string, any> = {
     [fieldId(fields, "Title")]: textField(candidate.classification.title),
     [fieldId(fields, "Long Title")]: textField(candidate.classification.longTitle),
     [fieldId(fields, "External Link")]: linkField(candidate.externalLink),
     [fieldId(fields, "Created time")]: dateField(new Date().toISOString()),
-    [fieldId(fields, "Categories")]: textField(candidate.classification.categories.join(", ")),
     [fieldId(fields, "Types")]: textField(candidate.classification.types.join(", ")),
     [fieldId(fields, "Platforms")]: textField(candidate.classification.platforms.join(", ")),
     [fieldId(fields, "Styles")]: textField(candidate.classification.styles.join(", ")),
@@ -238,6 +317,8 @@ export async function addWebsiteItem(
     [fieldId(fields, "Thumbnail")]: imageField(thumbnail.url, `${candidate.classification.title} thumbnail`),
     [fieldId(fields, "Full Image")]: imageField(fullImage.url, `${candidate.classification.title} full screenshot`),
   };
+
+  for (const categoryField of categoryFields) fieldData[categoryField.id] = categoryField.value;
 
   setOptional(fieldData, fields, "id", textField(candidate.slug));
   setOptional(fieldData, fields, "AI Comment", textField(candidate.aiComment));
