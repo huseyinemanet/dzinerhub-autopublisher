@@ -1,4 +1,5 @@
 import { config } from "./config.js";
+import { validateCapturedWebsite } from "./candidate-validation.js";
 import { connectFramer, getWebsitesCollection } from "./framer.js";
 import { captureWebsite, withBrowser } from "./screenshot.js";
 
@@ -88,6 +89,13 @@ async function main(): Promise<void> {
         try {
           console.log(`Refreshing ${title}: ${screenshotUrl}`);
           const metadata = await captureWebsite(browser, screenshotUrl);
+          const invalidReason = await validateCapturedWebsite(metadata);
+          if (invalidReason) {
+            skipped += 1;
+            console.log(`Skipped ${title}: ${invalidReason}`);
+            continue;
+          }
+
           const fieldData: Record<string, ReturnType<typeof imageField>> = {};
 
           if (refreshFields === "all" || refreshFields === "thumbnail") {

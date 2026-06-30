@@ -192,6 +192,80 @@ async function isBlankScreenshot(image: Buffer): Promise<boolean> {
   return Math.sqrt(variance) < 2 && buckets.size <= 2;
 }
 
+async function isLikelyBrowserErrorScreenshot(image: Buffer): Promise<boolean> {
+  const resized = await sharp(image)
+    .resize(160, 240, { fit: "fill" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const width = resized.info.width;
+  const height = resized.info.height;
+  const pixels = width * height;
+  if (!pixels) return true;
+
+  let whiteishPixels = 0;
+  let darkPixels = 0;
+  let saturatedPixels = 0;
+  let topRegionDarkPixels = 0;
+  let lowerRegionDarkPixels = 0;
+  const buckets = new Set<string>();
+
+  const topRegionHeight = Math.floor(height * 0.45);
+  const lowerRegionStart = Math.floor(height * 0.55);
+
+  for (let index = 0; index < resized.data.length; index += 3) {
+    const pixelIndex = index / 3;
+    const y = Math.floor(pixelIndex / width);
+    const r = resized.data[index] ?? 0;
+    const g = resized.data[index + 1] ?? 0;
+    const b = resized.data[index + 2] ?? 0;
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    const isDark = luminance < 70;
+
+    buckets.add(`${Math.round(r / 32)},${Math.round(g / 32)},${Math.round(b / 32)}`);
+    if (luminance > 238 && chroma < 16) whiteishPixels += 1;
+    if (isDark) {
+      darkPixels += 1;
+      if (y < topRegionHeight) topRegionDarkPixels += 1;
+      if (y >= lowerRegionStart) lowerRegionDarkPixels += 1;
+    }
+    if (chroma > 60) saturatedPixels += 1;
+  }
+
+  const topRegionPixels = width * topRegionHeight;
+  const lowerRegionPixels = width * (height - lowerRegionStart);
+
+  const whiteishRatio = whiteishPixels / pixels;
+  const darkRatio = darkPixels / pixels;
+  const saturatedRatio = saturatedPixels / pixels;
+  const topRegionDarkRatio = topRegionPixels > 0 ? topRegionDarkPixels / topRegionPixels : 0;
+  const lowerRegionDarkRatio = lowerRegionPixels > 0 ? lowerRegionDarkPixels / lowerRegionPixels : 0;
+
+  const sparseTopLoadedBrowserError =
+    whiteishRatio > 0.78 &&
+    darkRatio > 0.006 &&
+    darkRatio < 0.18 &&
+    topRegionDarkRatio > 0.012 &&
+    lowerRegionDarkRatio < 0.004 &&
+    saturatedRatio < 0.025;
+  const croppedPlainBrowserError =
+    whiteishRatio > 0.86 &&
+    darkRatio > 0.012 &&
+    darkRatio < 0.12 &&
+    saturatedRatio < 0.01 &&
+    buckets.size <= 32;
+
+  return sparseTopLoadedBrowserError || croppedPlainBrowserError;
+}
+
+export async function screenshotRejectReason(image: Buffer): Promise<string | null> {
+  if (await isBlankScreenshot(image)) return "blank screenshot";
+  if (await isLikelyBrowserErrorScreenshot(image)) return "browser error screenshot";
+  return null;
+}
+
 export async function validateCapturedWebsite(metadata: WebsiteMetadata): Promise<string | null> {
   if (metadata.preflightErrorReason) return metadata.preflightErrorReason;
 
@@ -208,7 +282,8 @@ export async function validateCapturedWebsite(metadata: WebsiteMetadata): Promis
   const visibleTextCount = new Set([...metadata.visualContext.headings, ...metadata.visualContext.visibleText]).size;
   if (isGenericTitle(metadata.title) && visibleTextCount < 2) return "weak page title and text";
   if (visibleTextCount < 1 && metadata.visualContext.imageCount < 1) return "no visible content";
-  if (await isBlankScreenshot(metadata.screenshot.thumbnail)) return "blank screenshot";
+  const screenshotReason = await screenshotRejectReason(metadata.screenshot.thumbnail);
+  if (screenshotReason) return screenshotReason;
 
   return null;
 }

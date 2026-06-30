@@ -1,4 +1,5 @@
 import { config } from "./config.js";
+import { screenshotRejectReason } from "./candidate-validation.js";
 import { connectFramer, getWebsitesCollection } from "./framer.js";
 import {
   captureFullImageWithScreenshotApi,
@@ -121,6 +122,14 @@ async function main(): Promise<void> {
                 fullPage: null,
                 mimeType: "image/jpeg" as const,
               };
+
+        const imageToValidate = screenshot.thumbnail ?? screenshot.fullPage;
+        const invalidReason = imageToValidate ? await screenshotRejectReason(imageToValidate) : null;
+        if (invalidReason) {
+          skipped += 1;
+          console.log(`Skipped ${title}: ${invalidReason}`);
+          continue;
+        }
 
         const fieldData: Record<string, ReturnType<typeof imageField>> = {};
 
