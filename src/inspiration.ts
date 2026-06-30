@@ -40,11 +40,15 @@ const BLOCKED_PATH_PARTS = [
   "/author",
   "/category",
   "/contact",
+  "/competitions",
   "/course",
   "/courses",
   "/events",
+  "/fairs",
   "/jobs",
+  "/keywords",
   "/login",
+  "/media",
   "/newsletter",
   "/privacy",
   "/rss",
@@ -72,6 +76,8 @@ const LISTING_SEGMENTS = new Set([
   "projects",
   "stories",
 ]);
+
+const LISTING_SECTION_SEGMENTS = new Set(["c", "category", "categories", "keyword", "keywords", "media", "tag", "topics"]);
 
 const TAG_OVERRIDES = new Map<string, string>([
   ["ai", "AI"],
@@ -225,6 +231,7 @@ export function isUsefulInspirationUrl(rawUrl: string, sourceUrl = "", options: 
   if (segments[0] === "page" && segments.length === 2 && /^\d+$/.test(segments[1] ?? "")) return false;
   if (segments[0] === "blog" && segments.length === 2 && LISTING_SEGMENTS.has(segments[1] ?? "")) return false;
   if (segments.length === 2 && LISTING_SEGMENTS.has(segments[0] ?? "") && /^\d+$/.test(segments[1] ?? "")) return false;
+  if (LISTING_SECTION_SEGMENTS.has(segments[0] ?? "") && segments.length <= 3) return false;
 
   return true;
 }
@@ -476,6 +483,12 @@ async function preparePhoto(candidates: InspirationImageCandidate[]): Promise<In
   throw new Error(`no usable image (${errors.slice(0, 3).join("; ")})`);
 }
 
+function isExpectedInspirationSkip(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("no usable image")) return message;
+  return null;
+}
+
 export function normalizeInspirationClassification(
   value: unknown,
   metadata: InspirationMetadata,
@@ -709,6 +722,13 @@ async function main(): Promise<void> {
         summary.created += 1;
         report.addCreated(candidate);
       } catch (error) {
+        const expectedSkip = isExpectedInspirationSkip(error);
+        if (expectedSkip) {
+          summary.skippedInvalid += 1;
+          report.addSkipped(url, expectedSkip);
+          console.log(`Skipped invalid inspiration: ${url} (${expectedSkip})`);
+          continue;
+        }
         summary.failed += 1;
         const message = error instanceof Error ? error.message : String(error);
         report.addFailed(url, message);

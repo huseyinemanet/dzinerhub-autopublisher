@@ -27,6 +27,11 @@ test("rejects inspiration home, listing, utility, social, and asset URLs", () =>
   assert.equal(isUsefulInspirationUrl("https://www.booooooom.com/blog/photo/", "https://www.booooooom.com/"), false);
   assert.equal(isUsefulInspirationUrl("https://mymodernmet.com/page/2", "https://mymodernmet.com/"), false);
   assert.equal(isUsefulInspirationUrl("https://academy.mymodernmet.com/courses/mixed-media-painting", "https://mymodernmet.com/"), false);
+  assert.equal(isUsefulInspirationUrl("https://www.itsnicethat.com/media/3d", "https://www.itsnicethat.com/"), false);
+  assert.equal(isUsefulInspirationUrl("https://www.designboom.com/competitions/all/", "https://www.designboom.com/"), false);
+  assert.equal(isUsefulInspirationUrl("https://www.frieze.com/fairs/frieze-seoul/tickets", "https://www.frieze.com/"), false);
+  assert.equal(isUsefulInspirationUrl("https://www.theartnewspaper.com/keywords/art-market", "https://www.theartnewspaper.com/"), false);
+  assert.equal(isUsefulInspirationUrl("https://www.artnews.com/c/art-news/news/", "https://www.artnews.com/"), false);
 });
 
 test("allows likely visual inspiration article URLs on the same source host", () => {
