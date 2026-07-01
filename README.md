@@ -108,7 +108,7 @@ Recommended repository variables:
 - `MAX_DETAIL_PAGES_PER_SOURCE=16`
 - `MIN_QUALITY_SCORE=0.68`
 - `MIN_INSPIRATION_QUALITY_SCORE=0.82`
-- `SITE_BASE_URL=https://dzinerhub.framer.website`
+- `SITE_BASE_URL=https://dzinerhub.com`
 
 The workflow runs every day at `08:12 Europe/Istanbul`.
 

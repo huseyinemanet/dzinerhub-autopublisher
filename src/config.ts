@@ -41,5 +41,5 @@ export const config = {
   inspirationSourceFile: process.env.INSPIRATION_SOURCE_FILE ?? "data/inspiration-sources.json",
   deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
   reportFile: process.env.REPORT_FILE ?? "autopublisher-report.json",
-  siteBaseUrl: process.env.SITE_BASE_URL ?? "https://dzinerhub.framer.website",
+  siteBaseUrl: process.env.SITE_BASE_URL ?? "https://dzinerhub.com",
 };

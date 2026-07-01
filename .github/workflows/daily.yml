@@ -83,7 +83,7 @@ jobs:
           MAX_DISCOVERY_PAGES: ${{ vars.MAX_DISCOVERY_PAGES || '32' }}
           MAX_DETAIL_PAGES_PER_SOURCE: ${{ vars.MAX_DETAIL_PAGES_PER_SOURCE || '16' }}
           MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
-          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.com' }}
           REPORT_FILE: autopublisher-report.json
           REF_PARAM: dzinerhub.com
         run: npm start
@@ -101,7 +101,7 @@ jobs:
           MAX_STORIES: ${{ vars.MAX_STORIES || '10' }}
           MAX_STORY_DISCOVERY_PAGES: ${{ vars.MAX_STORY_DISCOVERY_PAGES || '32' }}
           MIN_QUALITY_SCORE: ${{ vars.MIN_QUALITY_SCORE || '0.68' }}
-          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.com' }}
           STORY_SOURCE_FILE: data/story-sources.json
           STORY_REPORT_FILE: story-report.json
         run: npm run stories
@@ -119,7 +119,7 @@ jobs:
           MAX_INSPIRATION: ${{ vars.MAX_INSPIRATION || '5' }}
           MAX_INSPIRATION_DISCOVERY_PAGES: ${{ vars.MAX_INSPIRATION_DISCOVERY_PAGES || '32' }}
           MIN_INSPIRATION_QUALITY_SCORE: ${{ vars.MIN_INSPIRATION_QUALITY_SCORE || '0.82' }}
-          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.framer.website' }}
+          SITE_BASE_URL: ${{ vars.SITE_BASE_URL || 'https://dzinerhub.com' }}
           INSPIRATION_SOURCE_FILE: data/inspiration-sources.json
           INSPIRATION_REPORT_FILE: inspiration-report.json
         run: npm run inspiration
