@@ -26,9 +26,7 @@ on:
         required: false
         default: ""
         type: string
-  schedule:
-    # Every day at 08:12 Europe/Istanbul.
-    - cron: "12 5 * * *"
+  # Daily automation cancelled at the owner's request. Manual runs remain available.
 
 concurrency:
   group: dzinerhub-autopublisher
